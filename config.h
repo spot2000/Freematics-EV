@@ -80,8 +80,8 @@
 #ifndef ENABLE_WIFI
 #define ENABLE_WIFI 1
 // WiFi settings
-#define WIFI_SSID "skynet-2.4"
-#define WIFI_PASSWORD "waldemar72dennis"
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
 #endif 
 
 #ifndef SERVER_HOST
