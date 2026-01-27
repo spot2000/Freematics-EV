@@ -1,3 +1,89 @@
+/**
+ * @file FreematicsBase.h
+ * @brief Base class and data structures for Freematics telematics products
+ * 
+ * Defines the core interfaces and data types used across Freematics telematics devices.
+ * Includes custom PID definitions for GPS, sensor data, and communication protocols.
+ * 
+ * @author Stanley Huang <stanley@freematics.com.au>
+ * @copyright (C)2017-2018
+ * @license BSD
+ * 
+ * Visit https://freematics.com for more information
+ */
+
+/**
+ * @defgroup CustomPIDs Custom Parameter IDs
+ * @brief Non-OBD and custom PID definitions for extended sensor data
+ * @{
+ */
+
+/** @defgroup GPSPIDs GPS-related PIDs */
+/** @defgroup SensorPIDs Sensor-related PIDs */
+/** @defgroup SystemPIDs System-related PIDs */
+
+/** @} */
+
+/**
+ * @struct ORIENTATION
+ * @brief Device orientation angles
+ * 
+ * @var ORIENTATION::pitch
+ * Pitch angle in degrees
+ * @var ORIENTATION::yaw
+ * Yaw angle in degrees
+ * @var ORIENTATION::roll
+ * Roll angle in degrees
+ */
+
+/**
+ * @struct GPS_DATA
+ * @brief Complete GPS data structure
+ * 
+ * Contains timestamp, position, altitude, speed, and signal quality information
+ * from GPS module.
+ * 
+ * @var GPS_DATA::ts
+ * Timestamp in milliseconds
+ * @var GPS_DATA::date
+ * Date value
+ * @var GPS_DATA::time
+ * Time value
+ * @var GPS_DATA::lat
+ * Latitude in decimal degrees
+ * @var GPS_DATA::lng
+ * Longitude in decimal degrees
+ * @var GPS_DATA::alt
+ * Altitude in meters
+ * @var GPS_DATA::speed
+ * Speed in knots
+ * @var GPS_DATA::heading
+ * Heading in degrees (0-359)
+ * @var GPS_DATA::hdop
+ * Horizontal dilution of precision
+ * @var GPS_DATA::sat
+ * Number of satellites in view
+ * @var GPS_DATA::sentences
+ * Total GPS sentences received
+ * @var GPS_DATA::errors
+ * Number of erroneous sentences
+ */
+
+/**
+ * @class CLink
+ * @brief Abstract base class for communication link interfaces
+ * 
+ * Defines the interface for various communication protocols (UART, SPI, etc.)
+ * used in Freematics devices.
+ */
+
+/**
+ * @class CFreematics
+ * @brief Abstract base class for Freematics telematics device operations
+ * 
+ * Provides the core interface for xBee module communication, including
+ * UART initialization, data transmission/reception, and power management.
+ */
 /*************************************************************************
 * Base class for Freematics telematics products
 * Distributed under BSD license
