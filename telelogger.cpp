@@ -129,6 +129,13 @@ FreematicsESP32 sys;
 class OBD : public COBD
 {
 protected:
+  /*
+   * Summary: Runs quick background tasks while waiting for OBD responses.
+   * Logic: Processes MEMS sampling and BLE commands to keep sensors and BLE responsive.
+   * Inputs: none.
+   * Outputs: none.
+   * Notes: Called frequently during OBD communication idle time.
+   */
   void idleTasks()
   {
     // do some quick tasks while waiting for OBD response
@@ -161,6 +168,13 @@ OLED_SH1106 oled;
 
 State state;
 
+/*
+ * Summary: Prints cumulative timeout counters for OBD and network operations.
+ * Logic: Emits the current timeout counters to the serial console.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: Uses global counters timeoutsOBD and timeoutsNet.
+ */
 void printTimeoutStats()
 {
   Serial.print("Timeouts: OBD:");
@@ -169,6 +183,13 @@ void printTimeoutStats()
   Serial.println(timeoutsNet);
 }
 
+/*
+ * Summary: Emits a buzzer tone for a specified duration.
+ * Logic: Enables buzzer at 2000 Hz, waits for duration, then turns it off.
+ * Inputs: duration (milliseconds) for the audible beep.
+ * Outputs: none.
+ * Notes: Uses blocking delay.
+ */
 void beep(int duration)
 {
     // turn on buzzer at 2000Hz frequency 
@@ -179,6 +200,13 @@ void beep(int duration)
 }
 
 #if LOG_EXT_SENSORS
+/*
+ * Summary: Reads external sensor inputs and appends them to the buffer.
+ * Logic: Reads digital or analog inputs based on LOG_EXT_SENSORS mode and adds them as PID_EXT_SENSORS.
+ * Inputs: buffer (target buffer for serialized sensor data).
+ * Outputs: none.
+ * Notes: Mode 1 reads GPIO digital levels; Mode 2 reads ADC channels and prints raw values.
+ */
 void processExtInputs(CBuffer* buffer)
 {
 #if LOG_EXT_SENSORS == 1
@@ -199,6 +227,13 @@ void processExtInputs(CBuffer* buffer)
   HTTP API
 *******************************************************************************/
 #if ENABLE_HTTPD
+/*
+ * Summary: HTTP handler that returns the latest live telemetry data as JSON.
+ * Logic: Serializes OBD, MEMS, and GPS data into a JSON object in the provided buffer.
+ * Inputs: param (HTTP request context with output buffer and size).
+ * Outputs: Returns FLAG_DATA_RAW; sets content length and JSON content type.
+ * Notes: Uses global data snapshots (obdData, gd, accSum, accBias, etc.).
+ */
 int handlerLiveData(UrlHandlerParam* param)
 {
     char *buf = param->pucBuffer;
@@ -233,6 +268,13 @@ int handlerLiveData(UrlHandlerParam* param)
   Reading and processing OBD data
 *******************************************************************************/
 #if ENABLE_OBD
+/*
+ * Summary: Polls OBD PIDs and appends valid samples to the buffer.
+ * Logic: Iterates configured PIDs by tier, reads one tier per call, updates timestamps and values.
+ * Inputs: buffer (target buffer for OBD samples).
+ * Outputs: none.
+ * Notes: Updates lastMotionTime based on speed; increments timeouts on read failures.
+ */
 void processOBD(CBuffer* buffer)
 {
   static int idx[2] = {0, 0};
@@ -271,6 +313,13 @@ void processOBD(CBuffer* buffer)
 }
 #endif
 
+/*
+ * Summary: Initializes the GNSS receiver and reports its startup status.
+ * Logic: Attempts external GNSS start first, then internal GNSS; logs result.
+ * Inputs: none.
+ * Outputs: Returns true if a GNSS receiver starts successfully; otherwise false.
+ * Notes: Uses sys.gpsBeginExt() and sys.gpsBegin().
+ */
 bool initGPS()
 {
   // start GNSS receiver
@@ -285,6 +334,13 @@ bool initGPS()
   return true;
 }
 
+/*
+ * Summary: Reads and processes GNSS data, optionally storing it in the buffer.
+ * Logic: Fetches GNSS data, validates timestamps and coordinates, updates ISO time, and stores PIDs.
+ * Inputs: buffer (optional; when non-null, GNSS PIDs are appended).
+ * Outputs: Returns true when a new valid fix is processed; otherwise false.
+ * Notes: Updates lastMotionTime based on speed and tracks last valid fix for sanity checks.
+ */
 bool processGPS(CBuffer* buffer)
 {
   static uint32_t lastGPStime = 0;
@@ -368,6 +424,13 @@ bool processGPS(CBuffer* buffer)
   return true;
 }
 
+/*
+ * Summary: Waits for motion detection using GNSS data within a timeout window.
+ * Logic: Continuously processes GNSS updates, returning when motion is detected or timeout expires.
+ * Inputs: timeout (milliseconds to wait).
+ * Outputs: Returns true if motion is detected; otherwise false.
+ * Notes: Calls serverProcess during the wait loop.
+ */
 bool waitMotionGPS(int timeout)
 {
   unsigned long t = millis();
@@ -381,6 +444,13 @@ bool waitMotionGPS(int timeout)
 }
 
 #if ENABLE_MEMS
+/*
+ * Summary: Samples MEMS data and optionally appends averaged accelerometer data to the buffer.
+ * Logic: Reads MEMS sensor values, accumulates samples, and emits averaged accel/orientation data.
+ * Inputs: buffer (optional; when non-null, MEMS PIDs are appended).
+ * Outputs: none.
+ * Notes: Resets accumulators after writing to the buffer.
+ */
 void processMEMS(CBuffer* buffer)
 {
   if (!state.check(STATE_MEMS_READY)) return;
@@ -441,6 +511,13 @@ void processMEMS(CBuffer* buffer)
   }
 }
 
+/*
+ * Summary: Calibrates MEMS accelerometer bias by averaging samples.
+ * Logic: Reads MEMS samples for ~1 second, averages them, and stores as bias offsets.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: Requires MEMS to be ready; uses accBias globals.
+ */
 void calibrateMEMS()
 {
   if (state.check(STATE_MEMS_READY)) {
@@ -470,6 +547,13 @@ void calibrateMEMS()
 }
 #endif
 
+/*
+ * Summary: Prints the current UTC time if system time is valid.
+ * Logic: Reads system time via gmtime and outputs formatted UTC timestamp.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: Only prints when the system time year is valid.
+ */
 void printTime()
 {
   time_t utc;
@@ -488,6 +572,13 @@ void printTime()
 /*******************************************************************************
   Initializing all data logging components
 *******************************************************************************/
+/*
+ * Summary: Initializes data logging subsystems and enters working state.
+ * Logic: Initializes buffers, sensors (OBD/GNSS/MEMS), storage, VIN/DTC, and OLED status.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: Sets STATE_WORKING and updates lastMotionTime.
+ */
 void initialize()
 {
   // dump buffer data
@@ -577,6 +668,13 @@ void initialize()
 #endif
 }
 
+/*
+ * Summary: Prints telemetry and throughput statistics to the console (and OLED).
+ * Logic: Calculates elapsed time and traffic rates, then prints counters and rates.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: Uses teleClient counters and startTime.
+ */
 void showStats()
 {
   uint32_t t = millis() - teleClient.startTime;
@@ -605,6 +703,13 @@ void showStats()
 #endif
 }
 
+/*
+ * Summary: Waits for motion detection using MEMS or a timeout delay.
+ * Logic: Samples accelerometer data to detect movement; otherwise delays for timeout.
+ * Inputs: timeout (milliseconds, or -1 for indefinite while in standby).
+ * Outputs: Returns true if motion is detected; otherwise false.
+ * Notes: Calls serverProcess and BLE processing while waiting.
+ */
 bool waitMotion(long timeout)
 {
 #if ENABLE_MEMS
@@ -650,6 +755,13 @@ bool waitMotion(long timeout)
 /*******************************************************************************
   Collecting and processing data
 *******************************************************************************/
+/*
+ * Summary: Collects sensor data, stores it, and schedules transmissions.
+ * Logic: Polls OBD/MEMS/GNSS, updates buffers, handles storage, and adjusts data intervals.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: Clears STATE_WORKING when stationary timeout is reached.
+ */
 void process()
 {
   static uint32_t lastGPStick = 0;
@@ -774,6 +886,13 @@ void process()
   } while (millis() - startTime < dataInterval);
 }
 
+/*
+ * Summary: Initializes cellular connectivity and optionally performs full setup.
+ * Logic: Powers the modem, verifies SIM, configures APN, and gets IP/operator info.
+ * Inputs: quick (skip full setup when true).
+ * Outputs: Returns true if cellular is connected; otherwise false.
+ * Notes: Updates state flags and resets timeout counters.
+ */
 bool initCell(bool quick = false)
 {
   Serial.println("[CELL] Activating...");
@@ -852,6 +971,13 @@ bool initCell(bool quick = false)
 /*******************************************************************************
   Initializing network, maintaining connection and doing transmissions
 *******************************************************************************/
+/*
+ * Summary: Background task that manages network connectivity and data transmission.
+ * Logic: Handles standby pinging, Wi-Fi/cellular setup, buffer transmission, and reconnection.
+ * Inputs: inst (unused task parameter).
+ * Outputs: none.
+ * Notes: Runs indefinitely as a FreeRTOS task.
+ */
 void telemetry(void* inst)
 {
   uint32_t lastRssiTime = 0;
@@ -1068,6 +1194,13 @@ void telemetry(void* inst)
 /*******************************************************************************
   Implementing stand-by mode
 *******************************************************************************/
+/*
+ * Summary: Enters standby mode and waits for wake conditions.
+ * Logic: Stops storage and GNSS, puts subsystems into low power, waits for motion or voltage.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: May restart the ESP after wake depending on RESET_AFTER_WAKEUP.
+ */
 void standby()
 {
   state.set(STATE_STANDBY);
@@ -1119,6 +1252,13 @@ void standby()
 /*******************************************************************************
   Tasks to perform in idle/waiting time
 *******************************************************************************/
+/*
+ * Summary: Generates an 8-character device ID from the eFuse MAC.
+ * Logic: Uses bit shifts and character mapping to create a short printable ID.
+ * Inputs: buf (output buffer with space for at least 9 bytes).
+ * Outputs: Writes a null-terminated device ID string to buf.
+ * Notes: Avoids ambiguous characters via character substitutions.
+ */
 void genDeviceID(char* buf)
 {
     uint64_t seed = ESP.getEfuseMac() >> 8;
@@ -1140,6 +1280,13 @@ void genDeviceID(char* buf)
     buf[8] = 0;
 }
 
+/*
+ * Summary: Displays hardware and device information on serial and OLED.
+ * Logic: Prints CPU, flash, memory, and device ID information, plus RTC frequency.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: Uses OLED output when enabled.
+ */
 void showSysInfo()
 {
   Serial.print("CPU:");
@@ -1182,6 +1329,13 @@ void showSysInfo()
 #endif
 }
 
+/*
+ * Summary: Loads persisted configuration values from NVS.
+ * Logic: Reads APN and Wi-Fi credentials from NVS and applies defaults when missing.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: Updates global apn, wifiSSID, and wifiPassword.
+ */
 void loadConfig()
 {
   size_t len;
@@ -1200,6 +1354,13 @@ void loadConfig()
 #endif
 }
 
+/*
+ * Summary: Processes BLE commands and sends responses.
+ * Logic: Parses incoming BLE commands, executes actions, and returns formatted replies.
+ * Inputs: timeout (milliseconds to wait for a command).
+ * Outputs: none.
+ * Notes: Supports device control, network info, sensor readings, and settings updates.
+ */
 void processBLE(int timeout)
 {
 #if ENABLE_BLE
@@ -1351,30 +1512,12 @@ void processBLE(int timeout)
 #endif
 }
 
-/**
- * @brief Initializes the Freematics telemetry system and hardware components.
- * 
- * This function performs the following initialization steps:
- * - Initializes NVS (Non-Volatile Storage) flash memory and loads configuration
- * - Sets up OLED display if enabled
- * - Initializes USB serial communication (115200 baud)
- * - Configures LED pin and generates unique device ID
- * - Enters configuration mode if timeout is enabled
- * - Sets up external sensors based on LOG_EXT_SENSORS configuration
- * - Displays system information
- * - Initializes buffer manager
- * - Initializes OBD-II interface if enabled
- * - Detects and initializes MEMS (motion sensor) - supports ICM-42627, ICM-20948, or none
- * - Sets up HTTP server if enabled
- * - Initializes Bluetooth Low Energy (BLE) if enabled
- * - Starts telemetry background task
- * - Turns off LED to indicate successful initialization
- * 
- * @return void
- * 
- * @note This function should be called once during system startup.
- * @note Various features can be enabled/disabled via compile-time flags:
- *       ENABLE_OLED, ENABLE_OBD, ENABLE_MEMS, ENABLE_HTTPD, ENABLE_BLE, etc.
+/*
+ * Summary: Performs full hardware and system initialization for telemetry.
+ * Logic: Initializes NVS, OLED, serial, IDs, sensors, HTTPD/BLE, then starts telemetry task.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: Calls initialize() to set up data logging and transitions into working state.
  */
 void setup()
 {
@@ -1506,17 +1649,12 @@ if (!state.check(STATE_MEMS_READY)) do {
 }
 
 
-/**
- * @brief Main loop function that manages the device state and data collection.
- * 
- * This function performs the following operations:
- * - Checks if the device is in a working state
- * - If not working, enters standby mode and re-initializes the device
- * - Controls the LED indicator (if PIN_LED is defined) to signal state changes
- * - Processes and collects data when the device is operational
- * 
- * @note The function should be called repeatedly by the main program loop
- * @note LED behavior: turns ON during standby/initialization, turns OFF when operational
+/*
+ * Summary: Main loop that transitions between standby and active data collection.
+ * Logic: Enters standby when not working, reinitializes, and processes data otherwise.
+ * Inputs: none.
+ * Outputs: none.
+ * Notes: LED indicates standby vs. working state when PIN_LED is defined.
  */
 void loop()
 {
