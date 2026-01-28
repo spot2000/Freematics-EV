@@ -9,6 +9,7 @@
 #include "FreematicsBase.h"
 #include "FreematicsOBD.h"
 
+// Tar bort första raden i bufferten och returnerar antal tecken som togs bort.
 int dumpLine(char* buffer, int len)
 {
 	int bytesToDump = len >> 1;
@@ -25,6 +26,7 @@ int dumpLine(char* buffer, int len)
 	return bytesToDump;
 }
 
+// Tolkar upp till fyra hextecken (med ev. mellanslag) till 16-bitarsvärde.
 uint16_t hex2uint16(const char *p)
 {
 	char c = *p;
@@ -45,6 +47,7 @@ uint16_t hex2uint16(const char *p)
 	return i;
 }
 
+// Tolkar två hextecken till 8-bitarsvärde (0 vid ogiltig input).
 byte hex2uint8(const char *p)
 {
 	byte c1 = *p;
@@ -72,6 +75,7 @@ byte hex2uint8(const char *p)
 * OBD-II UART Bridge
 *************************************************************************/
 
+// Läser ett PID-värde, normaliserar datat och skriver resultatet till result.
 bool COBD::readPID(byte pid, int& result)
 {
 	char buffer[64];
@@ -105,6 +109,7 @@ bool COBD::readPID(byte pid, int& result)
 	return true;
 }
 
+// Läser flera PID:er och returnerar hur många som lästes korrekt.
 byte COBD::readPID(const byte pid[], byte count, int result[])
 {
 	byte results = 0;
@@ -116,6 +121,7 @@ byte COBD::readPID(const byte pid[], byte count, int result[])
 	return results;
 }
 
+// Hämtar DTC-koder och fyller codes med upp till maxCodes poster.
 int COBD::readDTC(uint16_t codes[], byte maxCodes)
 {
 	/*
@@ -152,6 +158,7 @@ int COBD::readDTC(uint16_t codes[], byte maxCodes)
 	return codesRead;
 }
 
+// Skickar kommando för att rensa ECU:s felkoder.
 void COBD::clearDTC()
 {
 	char buffer[32];
@@ -159,6 +166,7 @@ void COBD::clearDTC()
 	link->receive(buffer, sizeof(buffer), OBD_TIMEOUT_LONG);
 }
 
+// Normaliserar rådata beroende på PID:s specifikation.
 int COBD::normalizeData(byte pid, char* data)
 {
 	int result;
@@ -249,6 +257,7 @@ int COBD::normalizeData(byte pid, char* data)
 	return result;
 }
 
+// Väntar på OBD-svar och returnerar pekare till datafältet i buffer.
 char* COBD::getResponse(byte& pid, char* buffer, byte bufsize)
 {
 	if (!link) return 0;
@@ -269,6 +278,7 @@ char* COBD::getResponse(byte& pid, char* buffer, byte bufsize)
 	return 0;
 }
 
+// Sätter adaptern i lågströmsläge via ATLP.
 void COBD::enterLowPowerMode()
 {
   	char buf[32];
@@ -280,6 +290,7 @@ void COBD::enterLowPowerMode()
 }
 
 
+// Väcker adaptern genom att skicka ett kommando tills svar fås.
 void COBD::leaveLowPowerMode()
 {
 	// send any command to wake up
@@ -288,6 +299,7 @@ void COBD::leaveLowPowerMode()
 	for (byte n = 0; n < 30 && !link->sendCommand("ATI\r", buf, sizeof(buf), 1000); n++);
 }
 
+// Returnerar pekare till första numeriska värde i svarstexten.
 char* COBD::getResultValue(char* buf)
 {
 	char* p = buf;
@@ -302,6 +314,7 @@ char* COBD::getResultValue(char* buf)
 	return 0;
 }
 
+// Hämtar spänning från adaptern (ATRV) och returnerar värdet i volt.
 float COBD::getVoltage()
 {
     char buf[32];
@@ -312,6 +325,7 @@ float COBD::getVoltage()
     return 0;
 }
 
+// Hämtar VIN och fyller buffer med ASCII-sträng vid lyckad tolkning.
 bool COBD::getVIN(char* buffer, byte bufsize)
 {
 	for (byte n = 0; n < 2; n++) {
@@ -342,6 +356,7 @@ bool COBD::getVIN(char* buffer, byte bufsize)
     return false;
 }
 
+// Kontrollerar PID mot pidmap som laddats vid init.
 bool COBD::isValidPID(byte pid)
 {
 	pid--;
@@ -350,6 +365,7 @@ bool COBD::isValidPID(byte pid)
 	return (pidmap[i] & b) != 0;
 }
 
+// Initierar OBD-adaptern, testar kommunikation och laddar PID-map.
 bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 {
 	const char *initcmd[] = {"ATE0\r", "ATH0\r"};
@@ -428,18 +444,21 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 	return success;
 }
 
+// Mjukåterställer adaptern (ATR).
 void COBD::reset()
 {
 	char buf[32];
 	if (link) link->sendCommand("ATR\r", buf, sizeof(buf), OBD_TIMEOUT_SHORT);
 }
 
+// Avslutar OBD-session (ATPC).
 void COBD::uninit()
 {
 	char buf[32];
 	if (link) link->sendCommand("ATPC\r", buf, sizeof(buf), OBD_TIMEOUT_SHORT);
 }
 
+// Returnerar felkod om svaret innehåller ett felmeddelande.
 byte COBD::checkErrorMessage(const char* buffer)
 {
 	const char *errmsg[] = {"UNABLE", "ERROR", "TIMEOUT", "NO DATA"};
@@ -449,26 +468,31 @@ byte COBD::checkErrorMessage(const char* buffer)
 	return 0;
 }
 
+// Tolkar en byte till procentvärde 0-100.
 uint8_t COBD::getPercentageValue(char* data)
 {
   return (uint16_t)hex2uint8(data) * 100 / 255;
 }
 
+// Tolkar två bytes (4 hextecken) till 16-bitarsvärde.
 uint16_t COBD::getLargeValue(char* data)
 {
   return hex2uint16(data);
 }
 
+// Tolkar en byte (2 hextecken) till 8-bitarsvärde.
 uint8_t COBD::getSmallValue(char* data)
 {
   return hex2uint8(data);
 }
 
+// Tolkar temperaturbyte enligt OBD (A-40).
 int16_t COBD::getTemperatureValue(char* data)
 {
   return (int)hex2uint8(data) - 40;
 }
 
+// Sätter CAN header-ID och prioritet i adaptern.
 void COBD::setHeaderID(uint32_t num)
 {
 	if (link) {
@@ -480,6 +504,7 @@ void COBD::setHeaderID(uint32_t num)
 	}
 }
 
+// Slår på/av CAN-sniffning.
 void COBD::sniff(bool enabled)
 {
 	if (link) {
@@ -488,6 +513,7 @@ void COBD::sniff(bool enabled)
 	}
 }
 
+// Sätter CAN-headerfilter för sniffning.
 void COBD::setHeaderFilter(uint32_t num)
 {
 	if (link) {
@@ -497,6 +523,7 @@ void COBD::setHeaderFilter(uint32_t num)
 	}
 }
 	
+// Sätter CAN-headermask för sniffning.
 void COBD::setHeaderMask(uint32_t bitmask)
 {
 	if (link) {
@@ -506,6 +533,7 @@ void COBD::setHeaderMask(uint32_t bitmask)
 	}
 }
 
+// Tar emot sniffade CAN-rader och avkodar till rå bytebuffert.
 int COBD::receiveData(byte* buf, int len)
 {
 	if (!link) return 0;
@@ -539,6 +567,7 @@ int COBD::receiveData(byte* buf, int len)
 	return bytes;
 }
 
+// Sätter CAN-ID för sändning av kommande ramar.
 void COBD::setCANID(uint16_t id)
 {
 	if (link) {
@@ -548,6 +577,7 @@ void COBD::setCANID(uint16_t id)
 	}
 }
 
+// Skickar CAN-data som hexsträng och returnerar antal svarstecken.
 int COBD::sendCANMessage(byte msg[], int len, char* buf, int bufsize)
 {
 	if (!link) return 0;
