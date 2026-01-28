@@ -1351,6 +1351,31 @@ void processBLE(int timeout)
 #endif
 }
 
+/**
+ * @brief Initializes the Freematics telemetry system and hardware components.
+ * 
+ * This function performs the following initialization steps:
+ * - Initializes NVS (Non-Volatile Storage) flash memory and loads configuration
+ * - Sets up OLED display if enabled
+ * - Initializes USB serial communication (115200 baud)
+ * - Configures LED pin and generates unique device ID
+ * - Enters configuration mode if timeout is enabled
+ * - Sets up external sensors based on LOG_EXT_SENSORS configuration
+ * - Displays system information
+ * - Initializes buffer manager
+ * - Initializes OBD-II interface if enabled
+ * - Detects and initializes MEMS (motion sensor) - supports ICM-42627, ICM-20948, or none
+ * - Sets up HTTP server if enabled
+ * - Initializes Bluetooth Low Energy (BLE) if enabled
+ * - Starts telemetry background task
+ * - Turns off LED to indicate successful initialization
+ * 
+ * @return void
+ * 
+ * @note This function should be called once during system startup.
+ * @note Various features can be enabled/disabled via compile-time flags:
+ *       ENABLE_OLED, ENABLE_OBD, ENABLE_MEMS, ENABLE_HTTPD, ENABLE_BLE, etc.
+ */
 void setup()
 {
   delay(500);
@@ -1480,6 +1505,19 @@ if (!state.check(STATE_MEMS_READY)) do {
 #endif
 }
 
+
+/**
+ * @brief Main loop function that manages the device state and data collection.
+ * 
+ * This function performs the following operations:
+ * - Checks if the device is in a working state
+ * - If not working, enters standby mode and re-initializes the device
+ * - Controls the LED indicator (if PIN_LED is defined) to signal state changes
+ * - Processes and collects data when the device is operational
+ * 
+ * @note The function should be called repeatedly by the main program loop
+ * @note LED behavior: turns ON during standby/initialization, turns OFF when operational
+ */
 void loop()
 {
   // error handling
