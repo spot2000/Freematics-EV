@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 namespace {
+// Adds a comma separator to the JSON payload if a previous field was already written.
 bool appendFieldSeparator(char* buffer, size_t bufferSize, size_t* offset, bool* firstField)
 {
     if (*firstField) {
@@ -22,6 +23,7 @@ bool appendFieldSeparator(char* buffer, size_t bufferSize, size_t* offset, bool*
     return true;
 }
 
+// Appends a JSON integer field (e.g. "is_charging":1) to the payload buffer.
 bool appendIntField(char* buffer, size_t bufferSize, size_t* offset, bool* firstField,
                     const char* key, int value)
 {
@@ -36,6 +38,7 @@ bool appendIntField(char* buffer, size_t bufferSize, size_t* offset, bool* first
     return true;
 }
 
+// Appends a JSON unsigned integer field (e.g. "utc":1690000000) to the payload buffer.
 bool appendUIntField(char* buffer, size_t bufferSize, size_t* offset, bool* firstField,
                      const char* key, unsigned int value)
 {
@@ -50,6 +53,7 @@ bool appendUIntField(char* buffer, size_t bufferSize, size_t* offset, bool* firs
     return true;
 }
 
+// Appends a JSON floating-point field with a provided printf format (e.g. "soc":87.50).
 bool appendFloatField(char* buffer, size_t bufferSize, size_t* offset, bool* firstField,
                       const char* key, float value, const char* format)
 {
@@ -70,6 +74,7 @@ bool appendFloatField(char* buffer, size_t bufferSize, size_t* offset, bool* fir
 }
 } // namespace
 
+// Builds the ABRP telemetry JSON body into the supplied buffer and returns the payload size.
 size_t buildAbrpTelemetryJson(const AbrpTelemetry& data, const char* token, char* buffer, size_t bufferSize)
 {
     if (!buffer || bufferSize == 0) {
@@ -240,6 +245,7 @@ size_t buildAbrpTelemetryJson(const AbrpTelemetry& data, const char* token, char
     return offset;
 }
 
+// Constructs the ABRP payload and (once implemented) sends it to the ABRP telemetry endpoint.
 bool sendAbrpTelemetry(const AbrpTelemetry& data, const char* token, char* buffer, size_t bufferSize)
 {
     size_t payloadSize = buildAbrpTelemetryJson(data, token, buffer, bufferSize);
