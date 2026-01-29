@@ -18,6 +18,7 @@
 #include <FreematicsPlus.h>
 #include <httpd.h>
 #include "config.h"
+#include "CAN-uds.h"
 #include "telestore.h"
 #include "teleclient.h"
 #if BOARD_HAS_PSRAM
@@ -764,6 +765,8 @@ bool waitMotion(long timeout)
  */
 void process()
 {
+  static uint32_t lastUdsRead = 0;
+  const uint32_t udsIntervalMs = 1000;
   static uint32_t lastGPStick = 0;
   uint32_t startTime = millis();
 
@@ -774,6 +777,10 @@ void process()
   // process OBD data if connected
   if (state.check(STATE_OBD_READY)) {
     processOBD(buffer);
+    if (millis() - lastUdsRead >= udsIntervalMs) {
+      UDS_read_test();
+      lastUdsRead = millis();
+    }
     if (obd.errors >= MAX_OBD_ERRORS) {
       if (!obd.init()) {
         Serial.println("[OBD] ECU OFF");
