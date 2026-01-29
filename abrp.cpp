@@ -110,6 +110,8 @@ bool appendFloatField(char* buffer, size_t bufferSize, size_t* offset, bool* fir
 }
 } // namespace
 
+char abrpUserKey[64] = ABRP_USER_KEY;
+
 // Builds the ABRP telemetry JSON body into the supplied buffer and returns the payload size.
 size_t buildAbrpTelemetryJson(const AbrpTelemetry& data, const char* token, char* buffer, size_t bufferSize)
 {
@@ -117,7 +119,7 @@ size_t buildAbrpTelemetryJson(const AbrpTelemetry& data, const char* token, char
         return 0;
     }
     if (!token || token[0] == '\0') {
-        token = ABRP_USER_KEY;
+        token = abrpUserKey;
     }
 
     size_t offset = 0;
