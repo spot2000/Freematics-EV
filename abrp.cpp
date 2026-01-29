@@ -8,6 +8,8 @@
 #include <stdio.h>
 
 namespace {
+constexpr const char* kAbrpCarModel = "kia:ev9:23:100:awd";
+
 // Adds a comma separator to the JSON payload if a previous field was already written.
 bool appendFieldSeparator(char* buffer, size_t bufferSize, size_t* offset, bool* firstField)
 {
@@ -20,6 +22,24 @@ bool appendFieldSeparator(char* buffer, size_t bufferSize, size_t* offset, bool*
     }
     buffer[(*offset)++] = ',';
     buffer[*offset] = '\0';
+    return true;
+}
+
+// Appends a JSON string field (e.g. "car_model":"kia:ev9:23:100:awd") to the payload buffer.
+bool appendStringField(char* buffer, size_t bufferSize, size_t* offset, bool* firstField,
+                       const char* key, const char* value)
+{
+    if (!appendFieldSeparator(buffer, bufferSize, offset, firstField)) {
+        return false;
+    }
+    if (!value) {
+        value = "";
+    }
+    int written = snprintf(buffer + *offset, bufferSize - *offset, "\"%s\":\"%s\"", key, value);
+    if (written < 0 || static_cast<size_t>(written) >= bufferSize - *offset) {
+        return false;
+    }
+    *offset += static_cast<size_t>(written);
     return true;
 }
 
@@ -93,6 +113,10 @@ size_t buildAbrpTelemetryJson(const AbrpTelemetry& data, const char* token, char
     offset = static_cast<size_t>(written);
 
     bool firstField = true;
+
+    if (!appendStringField(buffer, bufferSize, &offset, &firstField, "car_model", kAbrpCarModel)) {
+        return 0;
+    }
 
     if (data.utc_valid) {
         if (!appendUIntField(buffer, bufferSize, &offset, &firstField, "utc", data.utc)) {
