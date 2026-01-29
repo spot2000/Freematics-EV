@@ -131,6 +131,10 @@
 #define PING_BACK_INTERVAL 900 /* seconds */
 #define SIGNAL_CHECK_INTERVAL 10 /* seconds */
 
+// ABRP keys
+#define ABRP_API_KEY "b8992aa2-cec6-43a9-8561-32499cf98ceb"
+#define ABRP_USER_KEY "your_user_key_here" /* replace with your ABRP user key */
+
 /**************************************
 * Data storage configurations
 **************************************/
