@@ -3,6 +3,14 @@
 
 
 #include "abrp.h"
+#include "CAN-data.h"
 
 #include <FreematicsPlus.h>
 
+AbrpTelemetry abrpTelemetry;
+
+void resetAbrpTelemetry(AbrpTelemetry& data)
+{
+    data = AbrpTelemetry();
+    // TODO: When CAN decode is implemented, populate abrpTelemetry fields from CAN PIDs here.
+}
