@@ -5,6 +5,8 @@
 
 #include "CAN-data.h"
 
+extern char abrpUserKey[64];
+
 size_t buildAbrpTelemetryJson(const AbrpTelemetry& data, const char* token, char* buffer, size_t bufferSize);
 bool sendAbrpTelemetry(const AbrpTelemetry& data, const char* token, char* buffer, size_t bufferSize);
 

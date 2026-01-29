@@ -17,6 +17,7 @@
 
 #include <FreematicsPlus.h>
 #include <httpd.h>
+#include "abrp.h"
 #include "config.h"
 #include "CAN-uds.h"
 #include "telestore.h"
@@ -1361,6 +1362,70 @@ void loadConfig()
 #endif
 }
 
+#if STORAGE == STORAGE_SD
+struct IniEntry {
+  const char* key;
+  char* value;
+  size_t valueSize;
+  bool found;
+};
+
+void applyIniLine(const char* line, IniEntry* entries, size_t entryCount)
+{
+  for (size_t i = 0; i < entryCount; i++) {
+    size_t keyLen = strlen(entries[i].key);
+    if (!strncmp(line, entries[i].key, keyLen) && line[keyLen] == '=') {
+      const char* value = line + keyLen + 1;
+      snprintf(entries[i].value, entries[i].valueSize, "%s", value);
+      entries[i].found = true;
+    }
+  }
+}
+
+bool loadIniFile(const char* path, IniEntry* entries, size_t entryCount)
+{
+  File file = SD.open(path, FILE_READ);
+  if (!file) {
+    return false;
+  }
+  char line[128];
+  while (file.available()) {
+    size_t len = file.readBytesUntil('\n', line, sizeof(line) - 1);
+    line[len] = '\0';
+    if (len > 0 && line[len - 1] == '\r') {
+      line[len - 1] = '\0';
+    }
+    applyIniLine(line, entries, entryCount);
+  }
+  file.close();
+  return true;
+}
+
+void loadSdIniOverrides()
+{
+  if (!state.check(STATE_STORAGE_READY)) {
+    if (logger.init()) {
+      state.set(STATE_STORAGE_READY);
+    } else {
+      return;
+    }
+  }
+
+#if ENABLE_WIFI
+  IniEntry wifiEntries[] = {
+    {"wifi_ssid", wifiSSID, sizeof(wifiSSID), false},
+    {"wifi_password", wifiPassword, sizeof(wifiPassword), false},
+  };
+  loadIniFile("/cfg/wifi.ini", wifiEntries, sizeof(wifiEntries) / sizeof(wifiEntries[0]));
+#endif
+
+  IniEntry abrpEntries[] = {
+    {"abrp_user_key", abrpUserKey, sizeof(abrpUserKey), false},
+  };
+  loadIniFile("/cfg/abrp.ini", abrpEntries, sizeof(abrpEntries) / sizeof(abrpEntries[0]));
+}
+#endif
+
 /*
  * Summary: Processes BLE commands and sends responses.
  * Logic: Parses incoming BLE commands, executes actions, and returns formatted replies.
@@ -1550,6 +1615,10 @@ void setup()
 #endif
   // initialize USB serial
   Serial.begin(115200);
+
+#if STORAGE == STORAGE_SD
+  loadSdIniOverrides();
+#endif
 
   // init LED pin
 #ifdef PIN_LED
