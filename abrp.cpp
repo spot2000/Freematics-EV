@@ -7,8 +7,24 @@
 
 #include <stdio.h>
 
+#include "config.h"
+
 namespace {
 constexpr const char* kAbrpCarModel = "kia:ev9:23:100:awd";
+constexpr const char* kAbrpEndpointFormat = "https://api.iternio.com/1/tlm/send?api_key=%s";
+
+size_t buildAbrpTelemetryEndpoint(char* buffer, size_t bufferSize)
+{
+    if (!buffer || bufferSize == 0) {
+        return 0;
+    }
+    int written = snprintf(buffer, bufferSize, kAbrpEndpointFormat, ABRP_API_KEY);
+    if (written < 0 || static_cast<size_t>(written) >= bufferSize) {
+        buffer[0] = '\0';
+        return 0;
+    }
+    return static_cast<size_t>(written);
+}
 
 // Adds a comma separator to the JSON payload if a previous field was already written.
 bool appendFieldSeparator(char* buffer, size_t bufferSize, size_t* offset, bool* firstField)
@@ -100,8 +116,8 @@ size_t buildAbrpTelemetryJson(const AbrpTelemetry& data, const char* token, char
     if (!buffer || bufferSize == 0) {
         return 0;
     }
-    if (!token) {
-        token = "";
+    if (!token || token[0] == '\0') {
+        token = ABRP_USER_KEY;
     }
 
     size_t offset = 0;
@@ -277,8 +293,13 @@ bool sendAbrpTelemetry(const AbrpTelemetry& data, const char* token, char* buffe
         return false;
     }
 
+    char endpoint[128];
+    if (buildAbrpTelemetryEndpoint(endpoint, sizeof(endpoint)) == 0) {
+        return false;
+    }
+
     // TODO: Add HTTP(S)/UDP client transport wiring to send payload to ABRP endpoint.
-    // Example target: https://api.iternio.com/1/tlm/send with JSON payload built above.
+    // Example target: https://api.iternio.com/1/tlm/send?api_key=... with JSON payload built above.
     // TODO: Inject network client dependency (TeleClientHTTP/UDP) and handle retries/backoff.
 
     return false;
