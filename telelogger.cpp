@@ -603,7 +603,7 @@ void initialize()
   // initialize OBD communication
   if (!state.check(STATE_OBD_READY)) {
     timeoutsOBD = 0;
-    if (obd.init()) {
+    if (obd.init(PROTO_ISO15765_11B_500K)) {
       Serial.println("OBD:OK");
       state.set(STATE_OBD_READY);
 #if ENABLE_OLED
