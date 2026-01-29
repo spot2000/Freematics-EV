@@ -372,37 +372,58 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 	char buffer[64];
 	bool success = false;
 
+	Serial.println("[OBD:init] Step 1/7: Check link");
 	if (!link) {
+		Serial.println("[OBD:init] Step 1/7: FAIL (no link)");
 		return false;
 	}
+	Serial.println("[OBD:init] Step 1/7: OK");
 
+	Serial.println("[OBD:init] Step 2/7: Set state to DISCONNECTED");
 	m_state = OBD_DISCONNECTED;
+	Serial.println("[OBD:init] Step 2/7: OK");
+	Serial.println("[OBD:init] Step 3/7: Reset adapter (ATZ)");
 	for (byte n = 0; n < 3; n++) {
 		if (link->sendCommand("ATZ\r", buffer, sizeof(buffer), OBD_TIMEOUT_SHORT)) {
 			success = true;
 			break;
 		}
 	}
-	if (!success) return false;
+	if (!success) {
+		Serial.println("[OBD:init] Step 3/7: FAIL (ATZ)");
+		return false;
+	}
+	Serial.println("[OBD:init] Step 3/7: OK");
+	Serial.println("[OBD:init] Step 4/7: Send init commands (ATE0/ATH0)");
 	for (byte i = 0; i < sizeof(initcmd) / sizeof(initcmd[0]); i++) {
 		link->sendCommand(initcmd[i], buffer, sizeof(buffer), OBD_TIMEOUT_SHORT);
 	}
+	Serial.println("[OBD:init] Step 4/7: OK");
 	if (protocol != PROTO_AUTO) {
+		Serial.println("[OBD:init] Step 5/7: Set protocol (ATSP)");
 		sprintf(buffer, "ATSP %X\r", protocol);
 		if (!link->sendCommand(buffer, buffer, sizeof(buffer), OBD_TIMEOUT_SHORT) || !strstr(buffer, "OK")) {
+			Serial.println("[OBD:init] Step 5/7: FAIL (ATSP)");
 			return false;
 		}
+		Serial.println("[OBD:init] Step 5/7: OK");
 	}
 	if (protocol == PROTO_J1939) {
+		Serial.println("[OBD:init] Step 6/7: J1939 fast-path");
 		m_state = OBD_CONNECTED;
 		errors = 0;
+		Serial.println("[OBD:init] Step 6/7: OK");
 		return true;
 	}
 
 	success = false;
+	Serial.println("[OBD:init] Step 6/7: Verify ECU response (PID_SPEED)");
 	if (quick) {
 		int value;
-		if (!readPID(PID_SPEED, value)) return false;
+		if (!readPID(PID_SPEED, value)) {
+			Serial.println("[OBD:init] Step 6/7: FAIL (PID_SPEED)");
+			return false;
+		}
 	} else {
 		for (byte n = 0; n < 2; n++) {
 			int value;
@@ -412,11 +433,14 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 			}
 		}
 		if (!success) {
+			Serial.println("[OBD:init] Step 6/7: FAIL (PID_SPEED)");
 			return false;
 		}
 	}
+	Serial.println("[OBD:init] Step 6/7: OK");
 
 	// load pid map
+	Serial.println("[OBD:init] Step 7/7: Load PID map");
 	memset(pidmap, 0xff, sizeof(pidmap));
 	for (byte i = 0; i < 8; i++) {
 		byte pid = i * 0x20;
@@ -440,6 +464,9 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 	if (success) {
 		m_state = OBD_CONNECTED;
 		errors = 0;
+		Serial.println("[OBD:init] Step 7/7: OK");
+	} else {
+		Serial.println("[OBD:init] Step 7/7: FAIL (PID map)");
 	}
 	return success;
 }
