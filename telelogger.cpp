@@ -1238,7 +1238,7 @@ void standby()
   delay(1000);
   oled.clear();
 #endif
-  Serial.println("STANDBY");
+  Serial.println("ENTERING STANDBY MODE - LOW POWER AND WAITING FOR WAKEUP");
   obd.enterLowPowerMode();
 #if ENABLE_MEMS
   calibrateMEMS();
@@ -1250,7 +1250,7 @@ void standby()
 #else
   delay(5000);
 #endif
-  Serial.println("WAKEUP");
+  Serial.println("WAKEUP FROM STANDBY");
   sys.resetLink();
 #if RESET_AFTER_WAKEUP
 #if ENABLE_MEMS
