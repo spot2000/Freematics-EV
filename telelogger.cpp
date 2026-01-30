@@ -186,19 +186,33 @@ void printTimeoutStats()
 }
 
 /*
- * Summary: Emits a buzzer tone for a specified duration.
- * Logic: Enables buzzer at 2000 Hz, waits for duration, then turns it off.
- * Inputs: duration (milliseconds) for the audible beep.
+ * Summary: Emits a buzzer tone for a specified duration and count.
+ * Logic: Enables buzzer at 2000 Hz, waits for duration, then turns it off for each beep.
+ * Inputs: duration (milliseconds) for the audible beep; no_beeps (number of beeps).
  * Outputs: none.
  * Notes: Uses blocking delay.
  */
-void beep(int duration)
+void beep(int duration, int no_beeps)
 {
-    // turn on buzzer at 2000Hz frequency 
-    sys.buzzer(2000);
-    delay(duration);
-    // turn off buzzer
-    sys.buzzer(0);
+    if (no_beeps <= 1) {
+        // turn on buzzer at 2000Hz frequency 
+        sys.buzzer(2000);
+        delay(duration);
+        // turn off buzzer
+        sys.buzzer(0);
+        return;
+    }
+
+    for (int i = 0; i < no_beeps; i++) {
+        // turn on buzzer at 2000Hz frequency 
+        sys.buzzer(2000);
+        delay(duration);
+        // turn off buzzer
+        sys.buzzer(0);
+        if (i < no_beeps - 1) {
+            delay(10);
+        }
+    }
 }
 
 #if LOG_EXT_SENSORS
@@ -1068,7 +1082,7 @@ void telemetry(void* inst)
           connErrors = 0;
           if (teleClient.connect()) {
             state.set(STATE_WIFI_CONNECTED | STATE_NET_READY);
-            beep(50);
+            beep(50, 1);
             // switch off cellular module when wifi connected
             if (state.check(STATE_CELL_CONNECTED)) {
               teleClient.cell.end();
@@ -1094,7 +1108,7 @@ void telemetry(void* inst)
         }
         Serial.println("[CELL] In service");
         state.set(STATE_NET_READY);
-        beep(50);
+        beep(50, 1);
       }
 
       if (millis() - lastRssiTime > SIGNAL_CHECK_INTERVAL * 1000) {
