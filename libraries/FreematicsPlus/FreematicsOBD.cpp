@@ -377,11 +377,11 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 		Serial.println("[OBD:init] Step 1/7: FAIL (no link)");
 		return false;
 	}
-	Serial.println("[OBD:init] Step 1/7: OK");
+	Serial.println("[OBD:init] Step 1/7: Link - OK");
 
 	Serial.println("[OBD:init] Step 2/7: Set state to DISCONNECTED");
 	m_state = OBD_DISCONNECTED;
-	Serial.println("[OBD:init] Step 2/7: OK");
+	Serial.println("[OBD:init] Step 2/7: State - OK");
 	Serial.println("[OBD:init] Step 3/7: Reset adapter (ATZ)");
 	for (byte n = 0; n < 3; n++) {
 		if (link->sendCommand("ATZ\r", buffer, sizeof(buffer), OBD_TIMEOUT_SHORT)) {
@@ -395,12 +395,12 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 		Serial.println("[OBD:init] Step 3/7: FAIL (ATZ)");
 		return false;
 	}
-	Serial.println("[OBD:init] Step 3/7: OK");
+	Serial.println("[OBD:init] Step 3/7: ATZ - OK");
 	Serial.println("[OBD:init] Step 4/7: Send init commands (ATE0/ATH0)");
 	for (byte i = 0; i < sizeof(initcmd) / sizeof(initcmd[0]); i++) {
 		link->sendCommand(initcmd[i], buffer, sizeof(buffer), OBD_TIMEOUT_SHORT);
 	}
-	Serial.println("[OBD:init] Step 4/7: OK");
+	Serial.println("[OBD:init] Step 4/7: (ATE0/ATH0) - OK");
 	if (protocol != PROTO_AUTO) {
 		Serial.println("[OBD:init] Step 5/7: Set protocol (ATSP)");
 		sprintf(buffer, "ATSP %X\r", protocol);
@@ -408,7 +408,7 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 			Serial.println("[OBD:init] Step 5/7: FAIL (ATSP)");
 			return false;
 		}
-		Serial.println("[OBD:init] Step 5/7: OK");
+		Serial.println("[OBD:init] Step 5/7: Set protocol - OK");
 	}
 	if (protocol == PROTO_J1939) {
 		Serial.println("[OBD:init] Step 6/7: J1939 fast-path");
@@ -423,7 +423,7 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 	if (quick) {
 		int value;
 		if (!readPID(PID_SPEED, value)) {
-			Serial.println("[OBD:init] Step 6/7: FAIL (PID_SPEED)");
+			Serial.println("[OBD:init] Step 6/7: ECU FAIL (PID_SPEED)");
 			return false;
 		}
 	} else {
@@ -435,11 +435,11 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 			}
 		}
 		if (!success) {
-			Serial.println("[OBD:init] Step 6/7: FAIL (PID_SPEED)");
+			Serial.println("[OBD:init] Step 6/7: ECU FAIL (PID_SPEED)");
 			return false;
 		}
 	}
-	Serial.println("[OBD:init] Step 6/7: OK");
+	Serial.println("[OBD:init] Step 6/7: ECU (PID_SPEED) - OK");
 
 	// load pid map
 	Serial.println("[OBD:init] Step 7/7: Load PID map");
