@@ -396,6 +396,13 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 		return false;
 	}
 	Serial.println("[OBD:init] Step 3/7: ATZ - OK");
+	Serial.println("[OBD:init] Step 3/7: Adapter ID (ATI)");
+	if (link->sendCommand("ATI\r", buffer, sizeof(buffer), OBD_TIMEOUT_SHORT)) {
+		Serial.print("[OBD:init] ATI response: ");
+		Serial.println(buffer);
+	} else {
+		Serial.println("[OBD:init] ATI response: (none)");
+	}
 	Serial.println("[OBD:init] Step 4/7: Send init commands (ATE0/ATH0)");
 	for (byte i = 0; i < sizeof(initcmd) / sizeof(initcmd[0]); i++) {
 		link->sendCommand(initcmd[i], buffer, sizeof(buffer), OBD_TIMEOUT_SHORT);
