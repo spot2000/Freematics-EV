@@ -385,6 +385,8 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 	Serial.println("[OBD:init] Step 3/7: Reset adapter (ATZ)");
 	for (byte n = 0; n < 3; n++) {
 		if (link->sendCommand("ATZ\r", buffer, sizeof(buffer), OBD_TIMEOUT_SHORT)) {
+			Serial.print("[OBD:init] ATZ response: ");
+			Serial.println(buffer);
 			success = true;
 			break;
 		}
