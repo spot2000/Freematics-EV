@@ -1401,6 +1401,27 @@ bool loadIniFile(const char* path, IniEntry* entries, size_t entryCount)
   return true;
 }
 
+void logIniEntries(const char* path, IniEntry* entries, size_t entryCount, bool loaded)
+{
+  Serial.print("[INI] ");
+  Serial.print(path);
+  if (!loaded) {
+    Serial.println(" load failed");
+    return;
+  }
+  Serial.println(" loaded");
+  for (size_t i = 0; i < entryCount; i++) {
+    Serial.print("[INI] ");
+    Serial.print(entries[i].key);
+    if (entries[i].found) {
+      Serial.print(" saved: ");
+      Serial.println(entries[i].value);
+    } else {
+      Serial.println(" not found");
+    }
+  }
+}
+
 void loadSdIniOverrides()
 {
   if (!state.check(STATE_STORAGE_READY)) {
@@ -1416,13 +1437,15 @@ void loadSdIniOverrides()
     {"wifi_ssid", wifiSSID, sizeof(wifiSSID), false},
     {"wifi_password", wifiPassword, sizeof(wifiPassword), false},
   };
-  loadIniFile("/cfg/wifi.ini", wifiEntries, sizeof(wifiEntries) / sizeof(wifiEntries[0]));
+  bool wifiLoaded = loadIniFile("/cfg/wifi.ini", wifiEntries, sizeof(wifiEntries) / sizeof(wifiEntries[0]));
+  logIniEntries("/cfg/wifi.ini", wifiEntries, sizeof(wifiEntries) / sizeof(wifiEntries[0]), wifiLoaded);
 #endif
 
   IniEntry abrpEntries[] = {
     {"abrp_user_key", abrpUserKey, sizeof(abrpUserKey), false},
   };
-  loadIniFile("/cfg/abrp.ini", abrpEntries, sizeof(abrpEntries) / sizeof(abrpEntries[0]));
+  bool abrpLoaded = loadIniFile("/cfg/abrp.ini", abrpEntries, sizeof(abrpEntries) / sizeof(abrpEntries[0]));
+  logIniEntries("/cfg/abrp.ini", abrpEntries, sizeof(abrpEntries) / sizeof(abrpEntries[0]), abrpLoaded);
 }
 #endif
 
