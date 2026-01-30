@@ -604,6 +604,7 @@ void initialize()
   // initialize OBD communication
   if (!state.check(STATE_OBD_READY)) {
     timeoutsOBD = 0;
+    Serial.println("[OBD] Init: PROTO_ISO15765_11B_500K");
     if (obd.init(PROTO_ISO15765_11B_500K)) {
       Serial.println("OBD:OK");
       state.set(STATE_OBD_READY);
@@ -783,6 +784,7 @@ void process()
       lastUdsRead = millis();
     }
     if (obd.errors >= MAX_OBD_ERRORS) {
+      Serial.println("[OBD] Re-init after errors");
       if (!obd.init(PROTO_ISO15765_11B_500K)) {
         Serial.println("[OBD] ECU OFF");
         state.clear(STATE_OBD_READY | STATE_WORKING);
@@ -792,6 +794,8 @@ void process()
   } else if (obd.init(PROTO_ISO15765_11B_500K, true)) {
     state.set(STATE_OBD_READY);
     Serial.println("[OBD] ECU ON");
+  } else {
+    Serial.println("[OBD] Init (fast) failed");
   }
 #endif
 
@@ -1678,6 +1682,8 @@ void setup()
     Serial.print("TYPE:");
     Serial.println(sys.devType);
     obd.begin(sys.link);
+  } else {
+    Serial.println("[OBD] sys.begin() failed; OBD link not initialized");
   }
 #else
   sys.begin(false, true);
