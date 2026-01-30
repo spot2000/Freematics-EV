@@ -783,13 +783,13 @@ void process()
       lastUdsRead = millis();
     }
     if (obd.errors >= MAX_OBD_ERRORS) {
-      if (!obd.init()) {
+      if (!obd.init(PROTO_ISO15765_11B_500K)) {
         Serial.println("[OBD] ECU OFF");
         state.clear(STATE_OBD_READY | STATE_WORKING);
         return;
       }
     }
-  } else if (obd.init(PROTO_AUTO, true)) {
+  } else if (obd.init(PROTO_ISO15765_11B_500K, true)) {
     state.set(STATE_OBD_READY);
     Serial.println("[OBD] ECU ON");
   }
