@@ -90,6 +90,14 @@ Configuration handling:
 -----------------------
 Configuration is done in the config.cfg file that is located in the config folder of the SD-card.
 See config file for more information.
+Inställningar för ABRP och WiFi kan läsas in via ini-filer i /cfg-mappen på SD-kortet.
+Additional SD-card overrides can be placed in the /cfg folder:
+* /cfg/wifi.ini with:
+  wifi_ssid=YOUR_WIFI_SSID
+  wifi_password=YOUR_WIFI_PASSWORD
+* /cfg/abrp.ini with:
+  abrp_user_key=YOUR_ABRP_USER_KEY
+Each file is a simple key=value list, one per line (no section headers).
 
 
 Data Transmission
