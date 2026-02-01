@@ -210,7 +210,7 @@ void beep(int duration, int no_beeps)
         // turn off buzzer
         sys.buzzer(0);
         if (i < no_beeps - 1) {
-            delay(10);
+            delay(50);
         }
     }
 }
@@ -782,7 +782,7 @@ bool waitMotion(long timeout)
 void process()
 {
   static uint32_t lastUdsRead = 0;
-  const uint32_t udsIntervalMs = 1000;
+  const uint32_t udsIntervalMs = 1000; // interval for UDS read test 1000 ms = 1 sec
   static uint32_t lastGPStick = 0;
   uint32_t startTime = millis();
 
@@ -1765,6 +1765,8 @@ if (!state.check(STATE_MEMS_READY)) do {
 #ifdef PIN_LED
   digitalWrite(PIN_LED, LOW);
 #endif
+
+beep(50, 3);
 }
 
 
