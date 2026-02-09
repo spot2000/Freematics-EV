@@ -95,8 +95,12 @@ bool read_UDS(uint32_t txCanId,
   obd.setCANID(txCanId);
 
   // 3) Sätt RX filter
-  obd.setHeaderMask(0x7FF);
-  obd.setHeaderFilter(rxCanId);
+  //    Tillåt svar från närliggande ECU-ID (t.ex. 0x7E8-0x7EF) genom
+  //    att maska bort de 3 lägsta bitarna. Detta gör läsningen mer robust
+  //    när ECU svarar på ett annat ID än exakt tx+0x8.
+  const uint32_t rxMask = 0x7F8;
+  obd.setHeaderMask(rxMask);
+  obd.setHeaderFilter(rxCanId & rxMask);
 
   // 4) Skicka request
   outRespTxt[0] = '\0';
