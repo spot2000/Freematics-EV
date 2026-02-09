@@ -595,7 +595,23 @@ int COBD::receiveData(byte* buf, int len)
 			buf[bytes] = d;
 		}
 	} else {
-		for (n = 0; n < len; bytes++) {
+		int start = 0;
+		int tokenEnd = 0;
+		for (; tokenEnd < len && buf[tokenEnd] != ' ' && buf[tokenEnd] != '\r'; tokenEnd++) {}
+		if (tokenEnd > 2 && tokenEnd < len && buf[tokenEnd] == ' ') {
+			bool allHex = true;
+			for (int i = 0; i < tokenEnd; i++) {
+				char c = buf[i];
+				if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))) {
+					allHex = false;
+					break;
+				}
+			}
+			if (allHex && (tokenEnd == 3 || tokenEnd == 8)) {
+				start = tokenEnd + 1;
+			}
+		}
+		for (n = start; n < len; bytes++) {
 			buf[bytes] = hex2uint8((const char*)buf + n);
 			n += 2;
 			if (buf[n++] != ' ') break;
