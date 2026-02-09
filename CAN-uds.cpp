@@ -100,11 +100,13 @@ bool read_UDS(uint32_t txCanId,
 
   // 4) Skicka och få råsvar
   outRespTxt[0] = '\0';
-  bool ok = obd.sendCANMessage((byte*)req, (byte)reqLen, outRespTxt, (int)outRespTxtSize);
-  if (!ok) {
+  int respChars = obd.sendCANMessage((byte*)req, (byte)reqLen, outRespTxt, (int)outRespTxtSize);
+  if (respChars <= 0) {
     *outRespLen = 0;
     return false;
   }
+  size_t end = (respChars < (int)outRespTxtSize) ? (size_t)respChars : outRespTxtSize - 1;
+  outRespTxt[end] = '\0';
 
   // 5) Parsea råsvaret till bytes
   *outRespLen = parseHexBytes(outRespTxt, outRespBytes, outRespBytesMax);
@@ -129,6 +131,5 @@ void UDS_read_test() {
     Serial.println("No response / request parse error");
   }
 }
-
 
 
