@@ -95,21 +95,107 @@ bool read_UDS(uint32_t txCanId,
   obd.setCANID(txCanId);
 
   // 3) Sätt RX filter
-  obd.setHeaderMask(0xFFFFFF);
+  obd.setHeaderMask(0x7FF);
   obd.setHeaderFilter(rxCanId);
 
-  // 4) Skicka och få råsvar
+  // 4) Skicka request
   outRespTxt[0] = '\0';
-  int respChars = obd.sendCANMessage((byte*)req, (byte)reqLen, outRespTxt, (int)outRespTxtSize);
-  if (respChars <= 0) {
+  char sendBuf[32];
+  if (obd.sendCANMessage((byte*)req, (byte)reqLen, sendBuf, (int)sizeof(sendBuf)) <= 0) {
     *outRespLen = 0;
     return false;
   }
-  size_t end = (respChars < (int)outRespTxtSize) ? (size_t)respChars : outRespTxtSize - 1;
-  outRespTxt[end] = '\0';
 
-  // 5) Parsea råsvaret till bytes
-  *outRespLen = parseHexBytes(outRespTxt, outRespBytes, outRespBytesMax);
+  // 5) Läs ISO-TP svar (single- och multi-frame)
+  obd.sniff(true);
+  uint32_t startMs = millis();
+  uint32_t lastMs = startMs;
+  size_t expectedLen = 0;
+  uint8_t nextSeq = 1;
+  bool gotFrame = false;
+  *outRespLen = 0;
+
+  while (millis() - startMs < 1000) {
+    byte frame[16];
+    int n = obd.receiveData(frame, sizeof(frame));
+    if (n <= 0) {
+      delay(2);
+      continue;
+    }
+    gotFrame = true;
+    lastMs = millis();
+
+    uint8_t pci = frame[0];
+    uint8_t type = pci >> 4;
+
+    if (type == 0x0) { // Single Frame
+      uint8_t len = pci & 0x0F;
+      size_t copyLen = (len <= (uint8_t)(n - 1)) ? len : (size_t)(n - 1);
+      if (copyLen > outRespBytesMax) copyLen = outRespBytesMax;
+      memcpy(outRespBytes, frame + 1, copyLen);
+      *outRespLen = copyLen;
+      expectedLen = copyLen;
+      break;
+    } else if (type == 0x1) { // First Frame
+      expectedLen = ((size_t)(pci & 0x0F) << 8) | frame[1];
+      size_t copyLen = (n > 2) ? (size_t)(n - 2) : 0;
+      if (copyLen > outRespBytesMax) copyLen = outRespBytesMax;
+      if (copyLen > expectedLen) copyLen = expectedLen;
+      memcpy(outRespBytes, frame + 2, copyLen);
+      *outRespLen = copyLen;
+
+      // Skicka Flow Control (Continue To Send)
+      uint8_t fc[3] = {0x30, 0x00, 0x00};
+      obd.setCANID(txCanId);
+      char fcResp[16];
+      obd.sendCANMessage(fc, 3, fcResp, (int)sizeof(fcResp));
+
+      nextSeq = 1;
+    } else if (type == 0x2) { // Consecutive Frame
+      if (expectedLen == 0) {
+        continue;
+      }
+      uint8_t seq = pci & 0x0F;
+      if ((seq & 0x0F) != (nextSeq & 0x0F)) {
+        nextSeq = seq;
+      }
+      size_t remaining = expectedLen - *outRespLen;
+      size_t copyLen = (n > 1) ? (size_t)(n - 1) : 0;
+      if (copyLen > remaining) copyLen = remaining;
+      if (*outRespLen + copyLen > outRespBytesMax) {
+        copyLen = outRespBytesMax - *outRespLen;
+      }
+      if (copyLen > 0) {
+        memcpy(outRespBytes + *outRespLen, frame + 1, copyLen);
+        *outRespLen += copyLen;
+      }
+      nextSeq++;
+      if (*outRespLen >= expectedLen) {
+        break;
+      }
+    }
+
+    if (gotFrame && expectedLen > 0 && millis() - lastMs > 200) {
+      break;
+    }
+  }
+  obd.sniff(false);
+
+  if (!gotFrame || *outRespLen == 0) {
+    return false;
+  }
+
+  // 6) Bygg ASCII-hex för komplett payload
+  size_t pos = 0;
+  for (size_t i = 0; i < *outRespLen && pos + 3 < outRespTxtSize; i++) {
+    snprintf(outRespTxt + pos, outRespTxtSize - pos, "%02X", outRespBytes[i]);
+    pos += 2;
+    if (pos + 2 < outRespTxtSize && i + 1 < *outRespLen) {
+      outRespTxt[pos++] = ' ';
+      outRespTxt[pos] = '\0';
+    }
+  }
+  outRespTxt[pos] = '\0';
   return true;
 }
 
