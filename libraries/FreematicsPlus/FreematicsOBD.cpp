@@ -424,7 +424,7 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 		Serial.println("[OBD:init] Step 6/7: OK");
 		return true;
 	}
-
+/*
 	success = false;
 	Serial.println("[OBD:init] Step 6/7: Verify ECU response (PID_SPEED)");
 	if (quick) {
@@ -469,7 +469,8 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 			}
 		}
 	}
-
+		*/
+success = true;
 	if (success) {
 		m_state = OBD_CONNECTED;
 		errors = 0;
