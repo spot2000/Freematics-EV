@@ -131,5 +131,3 @@ void UDS_read_test() {
     Serial.println("No response / request parse error");
   }
 }
-
-
