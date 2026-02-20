@@ -61,6 +61,59 @@ static size_t parseHexBytes(const char* s, uint8_t* out, size_t outMax) {
   return hexStringToBytes(s, out, outMax);
 }
 
+// Försöker extrahera en data-rad ur adaptertext (echo/prompt/headers förekommer ofta).
+static size_t parseAdapterResponse(const char* text, uint8_t* out, size_t outMax)
+{
+  if (!text || !out || !outMax) return 0;
+
+  const char* p = text;
+  while (*p) {
+    while (*p == '\r' || *p == '\n' || *p == ' ') p++;
+    if (!*p) break;
+
+    const char* lineStart = p;
+    while (*p && *p != '\r' && *p != '\n') p++;
+    const char* lineEnd = p;
+
+    while (lineStart < lineEnd && *lineStart == ' ') lineStart++;
+    while (lineEnd > lineStart && (lineEnd[-1] == ' ' || lineEnd[-1] == '\t')) lineEnd--;
+    if (lineEnd <= lineStart) continue;
+
+    size_t lineLen = (size_t)(lineEnd - lineStart);
+    if (lineLen >= 2 && lineLen < 128) {
+      char line[128];
+      memcpy(line, lineStart, lineLen);
+      line[lineLen] = '\0';
+
+      // Rader som "7EC 06 62 01 05 ...": hoppa CAN-ID + längdbyte.
+      int firstTokenLen = 0;
+      while (line[firstTokenLen] && line[firstTokenLen] != ' ') firstTokenLen++;
+      if ((firstTokenLen == 3 || firstTokenLen == 8) && line[firstTokenLen] == ' ') {
+        bool tokenHex = true;
+        for (int i = 0; i < firstTokenLen; i++) {
+          if (hexNibble(line[i]) < 0) {
+            tokenHex = false;
+            break;
+          }
+        }
+        if (tokenHex) {
+          const char* rest = line + firstTokenLen + 1;
+          if (rest[0] && rest[1] && hexNibble(rest[0]) >= 0 && hexNibble(rest[1]) >= 0) {
+            rest += 2;
+            while (*rest == ' ') rest++;
+          }
+          size_t n = parseHexBytes(rest, out, outMax);
+          if (n) return n;
+        }
+      }
+
+      size_t n = parseHexBytes(line, out, outMax);
+      if (n) return n;
+    }
+  }
+  return 0;
+}
+
 /**
  * read_UDS
  *  txCanId: t.ex 0x7E4
@@ -105,21 +158,31 @@ bool read_UDS(uint32_t txCanId,
   // 4) Skicka request
   outRespTxt[0] = '\0';
   char sendBuf[32];
-  if (obd.sendCANMessage((byte*)req, (byte)reqLen, sendBuf, (int)sizeof(sendBuf)) <= 0) {
+  int sendResp = obd.sendCANMessage((byte*)req, (byte)reqLen, sendBuf, (int)sizeof(sendBuf));
+  if (sendResp <= 0) {
     *outRespLen = 0;
     return false;
   }
 
+  // Vissa adaptrar returnerar svaret direkt i sendCommand-buffern (utan sniffning).
+  size_t parsed = parseAdapterResponse(sendBuf, outRespBytes, outRespBytesMax);
+  if (parsed > 0) {
+    *outRespLen = parsed;
+  }
+
   // 5) Läs ISO-TP svar (single- och multi-frame)
-  obd.sniff(true);
+  bool sniffEnabled = false;
+  if (*outRespLen == 0) {
+    obd.sniff(true);
+    sniffEnabled = true;
+  }
   uint32_t startMs = millis();
   uint32_t lastMs = startMs;
   size_t expectedLen = 0;
   uint8_t nextSeq = 1;
-  bool gotFrame = false;
-  *outRespLen = 0;
+  bool gotFrame = (*outRespLen > 0);
 
-  while (millis() - startMs < 1000) {
+  while (*outRespLen == 0 && millis() - startMs < 1000) {
     byte frame[16];
     int n = obd.receiveData(frame, sizeof(frame));
     if (n <= 0) {
@@ -183,7 +246,9 @@ bool read_UDS(uint32_t txCanId,
       break;
     }
   }
-  obd.sniff(false);
+  if (sniffEnabled) {
+    obd.sniff(false);
+  }
 
   if (!gotFrame || *outRespLen == 0) {
     return false;
