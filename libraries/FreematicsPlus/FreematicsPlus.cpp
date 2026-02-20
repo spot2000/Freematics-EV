@@ -31,7 +31,7 @@
 #include "soc/sens_reg.h"
 #endif
 
-#define VERBOSE_LINK 0
+#define VERBOSE_LINK 1
 #define VERBOSE_XBEE 0
 
 static TinyGPS gps;
