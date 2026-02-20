@@ -261,25 +261,41 @@ bool read_UDS(uint32_t txCanId,
 
 
 void UDS_read_test() {
-  char respTxt[256];
-  uint8_t resp[128];
-  size_t respLen = 0;
+  // Baserat på testkod för att verifiera multi-frame i serial logg och CAN-sniff.
+  // TX: 0x7E4, lyssna på ECU-svar från 0x7EC.
+  obd.setCANID(0x7E4);
+  obd.setHeaderMask(0xFFFFFF);
+  obd.setHeaderFilter(0x7EC);
 
-  if (read_UDS(0x7E4, "220105", respTxt, sizeof(respTxt), resp, sizeof(resp), &respLen)) {
-    Serial.print("RAW: ");
-    Serial.println(respTxt);
+  byte msg[] = {0x22, 0x01, 0x05};
+  char buf[128];
+  memset(buf, 0, sizeof(buf));
 
-    // snabbkoll: positivt svar börjar med 62 01 05
-    if (respLen >= 3 && resp[0] == 0x62 && resp[1] == 0x01 && resp[2] == 0x05) {
-      Serial.print("DID 0105 data: ");
-      for (size_t i = 3; i < respLen; i++) {
-        if (i > 3) Serial.print(' ');
+  Serial.println("[UDS] TX 7E4: 22 01 05 (filter 7EC)");
+  if (obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf))) {
+    // Visa rå adaptertext för att enklare felsöka i serial loggen.
+    Serial.print("[UDS] RX RAW: ");
+    Serial.println(buf);
+
+    // Försök också parsa till bytes för tydligare validering av multi-frame payload.
+    uint8_t resp[128];
+    size_t respLen = parseIndexedAdapterFrames(buf, resp, sizeof(resp));
+    if (!respLen) {
+      respLen = parseAdapterResponse(buf, resp, sizeof(resp));
+    }
+
+    if (respLen) {
+      Serial.print("[UDS] RX BYTES: ");
+      for (size_t i = 0; i < respLen; i++) {
+        if (i) Serial.print(' ');
         if (resp[i] < 0x10) Serial.print('0');
         Serial.print(resp[i], HEX);
       }
       Serial.println();
+    } else {
+      Serial.println("[UDS] RX parse miss (se RAW ovan)");
     }
   } else {
-    Serial.println("No response / request parse error");
+    Serial.println("[UDS] No response from sendCANMessage()");
   }
 }
