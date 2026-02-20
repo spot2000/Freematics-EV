@@ -212,7 +212,7 @@ bool read_UDS(uint32_t txCanId,
   uint8_t nextSeq = 1;
   bool gotFrame = (*outRespLen > 0);
 
-  while (*outRespLen == 0 && millis() - startMs < 1000) {
+  while (millis() - startMs < 1000) {
     byte frame[16];
     int n = obd.receiveData(frame, sizeof(frame));
     if (n <= 0) {
@@ -270,6 +270,10 @@ bool read_UDS(uint32_t txCanId,
       if (*outRespLen >= expectedLen) {
         break;
       }
+    }
+
+    if (expectedLen > 0 && *outRespLen >= expectedLen) {
+      break;
     }
 
     if (gotFrame && expectedLen > 0 && millis() - lastMs > 200) {
