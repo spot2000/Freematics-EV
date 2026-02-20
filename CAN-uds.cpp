@@ -125,6 +125,38 @@ static size_t parseAdapterResponse(const char* text, uint8_t* out, size_t outMax
   return 0;
 }
 
+// Samlar ihop svar i formatet "0: ...\r1: ..." (likt getVIN-hanteringen).
+static size_t parseIndexedAdapterFrames(const char* text, uint8_t* out, size_t outMax)
+{
+  if (!text || !out || !outMax) return 0;
+
+  const char* p = strstr(text, "0:");
+  if (!p) return 0;
+
+  size_t written = 0;
+  while (p && written < outMax) {
+    p += 2; // hoppa över "N:"
+    while (*p == ' ') p++;
+
+    const char* lineEnd = p;
+    while (*lineEnd && *lineEnd != '\r' && *lineEnd != '\n') lineEnd++;
+
+    size_t lineLen = (size_t)(lineEnd - p);
+    if (lineLen > 0 && lineLen < 128) {
+      char line[128];
+      memcpy(line, p, lineLen);
+      line[lineLen] = '\0';
+
+      size_t n = parseHexBytes(line, out + written, outMax - written);
+      written += n;
+    }
+
+    p = strchr(lineEnd, ':');
+  }
+
+  return written;
+}
+
 static bool isExpectedUdsReply(const uint8_t* data, size_t len,
                                const uint8_t* req, size_t reqLen)
 {
@@ -177,49 +209,46 @@ bool read_UDS(uint32_t txCanId,
     return false;
   }
 
-  const uint32_t rxCanId = txCanId + 0x8; // enligt din bekräftelse
-
   // 2) Sätt TX-ID
   obd.setCANID(txCanId);
 
-  // 3) Sätt RX filter
-  //    Tillåt svar inom ECU-blocket (0x7E8-0x7EF etc.) så vi inte tappar
-  //    legitima svar när ECU väljer närliggande svars-ID.
-  const uint32_t rxMask = 0x7F8;
-  obd.setHeaderMask(rxMask);
-  obd.setHeaderFilter(rxCanId & rxMask);
-
-  // 4) Skicka request i normal adapter-mode först.
-  //    Många adaptrar sköter ISO-TP/multiframe själva här.
+  // 3) Skicka request i normal adapter-mode.
+  //    Prefixa UDS payload med längdbyte enligt önskat format (03 22 01 05).
   outRespTxt[0] = '\0';
   *outRespLen = 0;
 
   auto sendAndTryParse = [&](const uint8_t* data, size_t len) -> bool {
-    char sendBuf[64];
+    char sendBuf[256];
     int sendResp = obd.sendCANMessage((byte*)data, (byte)len, sendBuf, (int)sizeof(sendBuf));
     if (sendResp <= 0) {
       return false;
     }
 
-    // Vissa adaptrar returnerar svaret direkt i sendCommand-buffern (utan sniffning).
-    size_t parsed = parseAdapterResponse(sendBuf, outRespBytes, outRespBytesMax);
+    // Först: försök läsa indexerade rader ("0:", "1:"), likt getVIN-flödet.
+    size_t parsed = parseIndexedAdapterFrames(sendBuf, outRespBytes, outRespBytesMax);
+    if (!parsed) {
+      // Fallback: generell rad-parser.
+      parsed = parseAdapterResponse(sendBuf, outRespBytes, outRespBytesMax);
+    }
     if (parsed > 0 && isExpectedUdsReply(outRespBytes, parsed, req, reqLen)) {
       *outRespLen = parsed;
     }
     return true;
   };
 
-  // Skicka enbart UDS payload (t.ex. "22 01 05").
-  // Adaptern bygger själv ISO-TP single frame (03 22 01 05 ...).
-  // Om vi lägger på PCI-byte här blir det felaktigt dubbelprefix,
-  // t.ex. 04 03 22 01 05.
-  bool sent = sendAndTryParse(req, reqLen);
+  uint8_t txFrame[33];
+  if (reqLen + 1 > sizeof(txFrame)) {
+    return false;
+  }
+  txFrame[0] = (uint8_t)reqLen;
+  memcpy(txFrame + 1, req, reqLen);
+
+  bool sent = sendAndTryParse(txFrame, reqLen + 1);
 
   if (!sent) {
     return false;
   }
 
-  // Om adaptern redan gav ett komplett/parsat svar behöver vi inte sniffa.
   if (*outRespLen > 0) {
     size_t pos = 0;
     for (size_t i = 0; i < *outRespLen && pos + 3 < outRespTxtSize; i++) {
@@ -234,130 +263,7 @@ bool read_UDS(uint32_t txCanId,
     return true;
   }
 
-  // 5) Fallback: sniffa råa ISO-TP-ramar och rekonstruera payload lokalt.
-  obd.sniff(true);
-  bool sniffEnabled = true;
-
-  uint32_t flushStart = millis();
-  while (millis() - flushStart < 30) {
-    byte junk[16];
-    if (obd.receiveData(junk, sizeof(junk)) <= 0) {
-      delay(1);
-    }
-  }
-
-  // Skicka request igen när sniff är aktivt så vi garanterat fångar first frame.
-  sent = sendAndTryParse(req, reqLen);
-  if (!sent) {
-    if (sniffEnabled) {
-      obd.sniff(false);
-    }
-    return false;
-  }
-
-  // 6) Läs ISO-TP svar (single- och multi-frame)
-  uint32_t startMs = millis();
-  uint32_t lastMs = startMs;
-  size_t expectedLen = 0;
-  uint8_t nextSeq = 1;
-  bool gotFrame = (*outRespLen > 0);
-
-  while (millis() - startMs < 1000) {
-    byte frame[16];
-    int n = obd.receiveData(frame, sizeof(frame));
-    if (n <= 0) {
-      delay(2);
-      continue;
-    }
-    gotFrame = true;
-    lastMs = millis();
-
-    uint8_t pci = frame[0];
-    uint8_t type = pci >> 4;
-
-    if (type == 0x0) { // Single Frame
-      uint8_t len = pci & 0x0F;
-      size_t copyLen = (len <= (uint8_t)(n - 1)) ? len : (size_t)(n - 1);
-      if (copyLen > outRespBytesMax) copyLen = outRespBytesMax;
-      if (copyLen > 0 && isExpectedUdsReply(frame + 1, copyLen, req, reqLen)) {
-        memcpy(outRespBytes, frame + 1, copyLen);
-        *outRespLen = copyLen;
-        expectedLen = copyLen;
-        break;
-      }
-      continue;
-    } else if (type == 0x1) { // First Frame
-      expectedLen = ((size_t)(pci & 0x0F) << 8) | frame[1];
-      size_t copyLen = (n > 2) ? (size_t)(n - 2) : 0;
-      if (copyLen > outRespBytesMax) copyLen = outRespBytesMax;
-      if (copyLen > expectedLen) copyLen = expectedLen;
-      if (copyLen == 0 || !isExpectedUdsReply(frame + 2, copyLen, req, reqLen)) {
-        expectedLen = 0;
-        *outRespLen = 0;
-        continue;
-      }
-      memcpy(outRespBytes, frame + 2, copyLen);
-      *outRespLen = copyLen;
-
-      // Skicka Flow Control (Continue To Send)
-      uint8_t fc[3] = {0x30, 0x00, 0x00};
-      obd.setCANID(txCanId);
-      char fcResp[16];
-      obd.sendCANMessage(fc, 3, fcResp, (int)sizeof(fcResp));
-
-      nextSeq = 1;
-    } else if (type == 0x2) { // Consecutive Frame
-      if (expectedLen == 0) {
-        continue;
-      }
-      uint8_t seq = pci & 0x0F;
-      if ((seq & 0x0F) != (nextSeq & 0x0F)) {
-        nextSeq = seq;
-      }
-      size_t remaining = expectedLen - *outRespLen;
-      size_t copyLen = (n > 1) ? (size_t)(n - 1) : 0;
-      if (copyLen > remaining) copyLen = remaining;
-      if (*outRespLen + copyLen > outRespBytesMax) {
-        copyLen = outRespBytesMax - *outRespLen;
-      }
-      if (copyLen > 0) {
-        memcpy(outRespBytes + *outRespLen, frame + 1, copyLen);
-        *outRespLen += copyLen;
-      }
-      nextSeq++;
-      if (*outRespLen >= expectedLen) {
-        break;
-      }
-    }
-
-    if (expectedLen > 0 && *outRespLen >= expectedLen) {
-      break;
-    }
-
-    if (gotFrame && expectedLen > 0 && millis() - lastMs > 200) {
-      break;
-    }
-  }
-  if (sniffEnabled) {
-    obd.sniff(false);
-  }
-
-  if (!gotFrame || *outRespLen == 0) {
-    return false;
-  }
-
-  // 6) Bygg ASCII-hex för komplett payload
-  size_t pos = 0;
-  for (size_t i = 0; i < *outRespLen && pos + 3 < outRespTxtSize; i++) {
-    snprintf(outRespTxt + pos, outRespTxtSize - pos, "%02X", outRespBytes[i]);
-    pos += 2;
-    if (pos + 2 < outRespTxtSize && i + 1 < *outRespLen) {
-      outRespTxt[pos++] = ' ';
-      outRespTxt[pos] = '\0';
-    }
-  }
-  outRespTxt[pos] = '\0';
-  return true;
+  return false;
 }
 
 
@@ -372,7 +278,13 @@ void UDS_read_test() {
 
     // snabbkoll: positivt svar börjar med 62 01 05
     if (respLen >= 3 && resp[0] == 0x62 && resp[1] == 0x01 && resp[2] == 0x05) {
-      // data börjar från resp[3]
+      Serial.print("DID 0105 data: ");
+      for (size_t i = 3; i < respLen; i++) {
+        if (i > 3) Serial.print(' ');
+        if (resp[i] < 0x10) Serial.print('0');
+        Serial.print(resp[i], HEX);
+      }
+      Serial.println();
     }
   } else {
     Serial.println("No response / request parse error");
