@@ -183,14 +183,27 @@ bool read_UDS(uint32_t txCanId,
   obd.setCANID(txCanId);
 
   // 3) Sätt RX filter
-  //    Tillåt svar från närliggande ECU-ID (t.ex. 0x7E8-0x7EF) genom
-  //    att maska bort de 3 lägsta bitarna. Detta gör läsningen mer robust
-  //    när ECU svarar på ett annat ID än exakt tx+0x8.
-  const uint32_t rxMask = 0x7F8;
+  //    Använd exakt CAN-ID för att minimera brus på bussen och undvika
+  //    att orelaterade UDS-sessioner blandas in i parsningen.
+  const uint32_t rxMask = 0x7FF;
   obd.setHeaderMask(rxMask);
   obd.setHeaderFilter(rxCanId & rxMask);
 
-  // 4) Skicka request
+  // 4) Starta sniffning och töm gamla rader INNAN ny request skickas.
+  //    Om flush görs efter sändning riskerar vi att kasta bort det riktiga
+  //    svaret när ECU svarar snabbt.
+  obd.sniff(true);
+  bool sniffEnabled = true;
+
+  uint32_t flushStart = millis();
+  while (millis() - flushStart < 40) {
+    byte junk[16];
+    if (obd.receiveData(junk, sizeof(junk)) <= 0) {
+      delay(1);
+    }
+  }
+
+  // 5) Skicka request
   outRespTxt[0] = '\0';
   *outRespLen = 0;
 
@@ -216,24 +229,13 @@ bool read_UDS(uint32_t txCanId,
   bool sent = sendAndTryParse(req, reqLen);
 
   if (!sent) {
+    if (sniffEnabled) {
+      obd.sniff(false);
+    }
     return false;
   }
 
-  // 5) Läs ISO-TP svar (single- och multi-frame)
-  bool sniffEnabled = false;
-  if (*outRespLen == 0) {
-    obd.sniff(true);
-    sniffEnabled = true;
-
-    // Töm eventuella gamla rader innan ny request hanteras.
-    uint32_t flushStart = millis();
-    while (millis() - flushStart < 30) {
-      byte junk[16];
-      if (obd.receiveData(junk, sizeof(junk)) <= 0) {
-        delay(1);
-      }
-    }
-  }
+  // 6) Läs ISO-TP svar (single- och multi-frame)
   uint32_t startMs = millis();
   uint32_t lastMs = startMs;
   size_t expectedLen = 0;
