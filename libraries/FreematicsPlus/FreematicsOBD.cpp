@@ -368,7 +368,7 @@ bool COBD::isValidPID(byte pid)
 // Initierar OBD-adaptern, testar kommunikation och laddar PID-map.
 bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 {
-	const char *initcmd[] = {"ATE0\r", "ATH0\r"};
+	const char *initcmd[] = {"ATE0\r", "ATH0\r", "ATCAF1\r"};
 	char buffer[64];
 	bool success = false;
 
@@ -403,11 +403,11 @@ bool COBD::init(OBD_PROTOCOLS protocol, bool quick)
 	} else {
 		Serial.println("[OBD:init] ATI response: (none)");
 	}
-	Serial.println("[OBD:init] Step 4/7: Send init commands (ATE0/ATH0)");
+	Serial.println("[OBD:init] Step 4/7: Send init commands (ATE0/ATH0/ATCAF1)");
 	for (byte i = 0; i < sizeof(initcmd) / sizeof(initcmd[0]); i++) {
 		link->sendCommand(initcmd[i], buffer, sizeof(buffer), OBD_TIMEOUT_SHORT);
 	}
-	Serial.println("[OBD:init] Step 4/7: (ATE0/ATH0) - OK");
+	Serial.println("[OBD:init] Step 4/7: (ATE0/ATH0/ATCAF1) - OK");
 	if (protocol != PROTO_AUTO) {
 		Serial.println("[OBD:init] Step 5/7: Set protocol (ATSP)");
 		sprintf(buffer, "ATSP %X\r", protocol);
