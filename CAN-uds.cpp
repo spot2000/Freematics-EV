@@ -125,6 +125,30 @@ static size_t parseAdapterResponse(const char* text, uint8_t* out, size_t outMax
   return 0;
 }
 
+static bool isExpectedUdsReply(const uint8_t* data, size_t len,
+                               const uint8_t* req, size_t reqLen)
+{
+  if (!data || !len || !req || !reqLen) return false;
+
+  // Negativt svar för just vår service (7F <SID> <NRC>)
+  if (len >= 3 && data[0] == 0x7F) {
+    return data[1] == req[0];
+  }
+
+  const uint8_t positiveSid = (uint8_t)(req[0] + 0x40);
+  if (data[0] != positiveSid) return false;
+
+  // För tjänster som brukar echa parametrar (t.ex. 22 DID_H DID_L)
+  // verifierar vi upp till två bytes extra för att filtrera bort skräpramar.
+  size_t echoBytes = (reqLen > 1) ? reqLen - 1 : 0;
+  if (echoBytes > 2) echoBytes = 2;
+  if (len < 1 + echoBytes) return false;
+  for (size_t i = 0; i < echoBytes; i++) {
+    if (data[1 + i] != req[1 + i]) return false;
+  }
+  return true;
+}
+
 /**
  * read_UDS
  *  txCanId: t.ex 0x7E4
@@ -179,7 +203,7 @@ bool read_UDS(uint32_t txCanId,
 
     // Vissa adaptrar returnerar svaret direkt i sendCommand-buffern (utan sniffning).
     size_t parsed = parseAdapterResponse(sendBuf, outRespBytes, outRespBytesMax);
-    if (parsed > 0) {
+    if (parsed > 0 && isExpectedUdsReply(outRespBytes, parsed, req, reqLen)) {
       *outRespLen = parsed;
     }
     return true;
@@ -200,6 +224,15 @@ bool read_UDS(uint32_t txCanId,
   if (*outRespLen == 0) {
     obd.sniff(true);
     sniffEnabled = true;
+
+    // Töm eventuella gamla rader innan ny request hanteras.
+    uint32_t flushStart = millis();
+    while (millis() - flushStart < 30) {
+      byte junk[16];
+      if (obd.receiveData(junk, sizeof(junk)) <= 0) {
+        delay(1);
+      }
+    }
   }
   uint32_t startMs = millis();
   uint32_t lastMs = startMs;
@@ -224,15 +257,23 @@ bool read_UDS(uint32_t txCanId,
       uint8_t len = pci & 0x0F;
       size_t copyLen = (len <= (uint8_t)(n - 1)) ? len : (size_t)(n - 1);
       if (copyLen > outRespBytesMax) copyLen = outRespBytesMax;
-      memcpy(outRespBytes, frame + 1, copyLen);
-      *outRespLen = copyLen;
-      expectedLen = copyLen;
-      break;
+      if (copyLen > 0 && isExpectedUdsReply(frame + 1, copyLen, req, reqLen)) {
+        memcpy(outRespBytes, frame + 1, copyLen);
+        *outRespLen = copyLen;
+        expectedLen = copyLen;
+        break;
+      }
+      continue;
     } else if (type == 0x1) { // First Frame
       expectedLen = ((size_t)(pci & 0x0F) << 8) | frame[1];
       size_t copyLen = (n > 2) ? (size_t)(n - 2) : 0;
       if (copyLen > outRespBytesMax) copyLen = outRespBytesMax;
       if (copyLen > expectedLen) copyLen = expectedLen;
+      if (copyLen == 0 || !isExpectedUdsReply(frame + 2, copyLen, req, reqLen)) {
+        expectedLen = 0;
+        *outRespLen = 0;
+        continue;
+      }
       memcpy(outRespBytes, frame + 2, copyLen);
       *outRespLen = copyLen;
 

@@ -792,11 +792,17 @@ void process()
 #if ENABLE_OBD
   // process OBD data if connected
   if (state.check(STATE_OBD_READY)) {
-    processOBD(buffer);
-    if (millis() - lastUdsRead >= udsIntervalMs) {
+    bool runUdsTest = (millis() - lastUdsRead >= udsIntervalMs);
+
+    // Undvik att blanda periodisk OBD-pollning (7DF/5xx) med UDS-test i samma loopvarv.
+    // Det gör sniff-spåret renare och minskar risken att gamla svar ligger kvar i adapterns RX-buffer.
+    if (runUdsTest) {
       UDS_read_test();
       lastUdsRead = millis();
+    } else {
+      processOBD(buffer);
     }
+
     if (obd.errors >= MAX_OBD_ERRORS) {
       Serial.println("[OBD] Re-init after errors");
       if (!obd.init(PROTO_ISO15765_11B_500K)) {
