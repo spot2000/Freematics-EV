@@ -85,19 +85,30 @@ static size_t parseAdapterResponse(const char* text, uint8_t* out, size_t outMax
       memcpy(line, lineStart, lineLen);
       line[lineLen] = '\0';
 
+      // Rader som "2: FF 00 ...": hoppa radindex-prefix.
+      const char* payload = line;
+      int prefixDigits = 0;
+      while (payload[prefixDigits] && payload[prefixDigits] >= '0' && payload[prefixDigits] <= '9') {
+        prefixDigits++;
+      }
+      if (prefixDigits > 0 && payload[prefixDigits] == ':') {
+        payload += prefixDigits + 1;
+        while (*payload == ' ') payload++;
+      }
+
       // Rader som "7EC 06 62 01 05 ...": hoppa CAN-ID + längdbyte.
       int firstTokenLen = 0;
-      while (line[firstTokenLen] && line[firstTokenLen] != ' ') firstTokenLen++;
-      if ((firstTokenLen == 3 || firstTokenLen == 8) && line[firstTokenLen] == ' ') {
+      while (payload[firstTokenLen] && payload[firstTokenLen] != ' ') firstTokenLen++;
+      if ((firstTokenLen == 3 || firstTokenLen == 8) && payload[firstTokenLen] == ' ') {
         bool tokenHex = true;
         for (int i = 0; i < firstTokenLen; i++) {
-          if (hexNibble(line[i]) < 0) {
+          if (hexNibble(payload[i]) < 0) {
             tokenHex = false;
             break;
           }
         }
         if (tokenHex) {
-          const char* rest = line + firstTokenLen + 1;
+          const char* rest = payload + firstTokenLen + 1;
           if (rest[0] && rest[1] && hexNibble(rest[0]) >= 0 && hexNibble(rest[1]) >= 0) {
             rest += 2;
             while (*rest == ' ') rest++;
@@ -107,7 +118,7 @@ static size_t parseAdapterResponse(const char* text, uint8_t* out, size_t outMax
         }
       }
 
-      size_t n = parseHexBytes(line, out, outMax);
+      size_t n = parseHexBytes(payload, out, outMax);
       if (n) return n;
     }
   }
