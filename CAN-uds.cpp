@@ -130,12 +130,25 @@ static size_t parseIndexedAdapterFrames(const char* text, uint8_t* out, size_t o
 {
   if (!text || !out || !outMax) return 0;
 
-  const char* p = strstr(text, "0:");
-  if (!p) return 0;
+  // Acceptera indexerade rader även om första mottagna raden inte råkar vara "0:".
+  const char* p = text;
+  while (*p) {
+    while (*p == '\r' || *p == '\n' || *p == ' ') p++;
+    if (!*p) return 0;
+    if (*p >= '0' && *p <= '9') {
+      const char* q = p + 1;
+      while (*q >= '0' && *q <= '9') q++;
+      if (*q == ':') break;
+    }
+    while (*p && *p != '\n' && *p != '\r') p++;
+  }
+  if (!*p) return 0;
 
   size_t written = 0;
   while (p && written < outMax) {
-    p += 2; // hoppa över "N:"
+    while (*p >= '0' && *p <= '9') p++;
+    if (*p != ':') break;
+    p++; // hoppa över ':'
     while (*p == ' ') p++;
 
     const char* lineEnd = p;
@@ -151,7 +164,20 @@ static size_t parseIndexedAdapterFrames(const char* text, uint8_t* out, size_t o
       written += n;
     }
 
-    p = strchr(lineEnd, ':');
+    // Leta nästa rad med indexprefix N:
+    p = lineEnd;
+    while (*p) {
+      while (*p == '\r' || *p == '\n' || *p == ' ') p++;
+      if (!*p) break;
+      if (*p >= '0' && *p <= '9') {
+        const char* q = p + 1;
+        while (*q >= '0' && *q <= '9') q++;
+        if (*q == ':') {
+          break;
+        }
+      }
+      while (*p && *p != '\n' && *p != '\r') p++;
+    }
   }
 
   return written;
@@ -236,7 +262,11 @@ bool read_UDS(uint32_t txCanId,
     return true;
   };
 
-  bool sent = sendAndTryParse(req, reqLen);
+  bool sent = false;
+  for (int attempt = 0; attempt < 3 && !*outRespLen; attempt++) {
+    sent = sendAndTryParse(req, reqLen) || sent;
+    if (!*outRespLen) delay(10);
+  }
 
   if (!sent) {
     return false;
@@ -272,7 +302,11 @@ void UDS_read_test() {
   memset(buf, 0, sizeof(buf));
 
   Serial.println("[UDS] TX 7E4: 22 01 05 (filter 7EC)");
-  if (obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf))) {
+  bool gotValid = false;
+  for (int attempt = 0; attempt < 3 && !gotValid; attempt++) {
+    memset(buf, 0, sizeof(buf));
+    if (!obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf))) continue;
+
     // Visa rå adaptertext för att enklare felsöka i serial loggen.
     Serial.print("[UDS] RX RAW: ");
     Serial.println(buf);
@@ -284,7 +318,7 @@ void UDS_read_test() {
       respLen = parseAdapterResponse(buf, resp, sizeof(resp));
     }
 
-    if (respLen) {
+    if (respLen && isExpectedUdsReply(resp, respLen, msg, sizeof(msg))) {
       Serial.print("[UDS] RX BYTES: ");
       for (size_t i = 0; i < respLen; i++) {
         if (i) Serial.print(' ');
@@ -292,10 +326,14 @@ void UDS_read_test() {
         Serial.print(resp[i], HEX);
       }
       Serial.println();
+      gotValid = true;
     } else {
-      Serial.println("[UDS] RX parse miss (se RAW ovan)");
+      Serial.println("[UDS] RX parse miss/irrelevant frame (se RAW ovan)");
+      delay(10);
     }
-  } else {
-    Serial.println("[UDS] No response from sendCANMessage()");
+  }
+
+  if (!gotValid) {
+    Serial.println("[UDS] No valid UDS response after retries");
   }
 }
