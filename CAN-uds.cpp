@@ -157,17 +157,47 @@ bool read_UDS(uint32_t txCanId,
 
   // 4) Skicka request
   outRespTxt[0] = '\0';
-  char sendBuf[32];
-  int sendResp = obd.sendCANMessage((byte*)req, (byte)reqLen, sendBuf, (int)sizeof(sendBuf));
-  if (sendResp <= 0) {
-    *outRespLen = 0;
-    return false;
+  *outRespLen = 0;
+
+  auto sendAndTryParse = [&](const uint8_t* data, size_t len) -> bool {
+    char sendBuf[64];
+    int sendResp = obd.sendCANMessage((byte*)data, (byte)len, sendBuf, (int)sizeof(sendBuf));
+    if (sendResp <= 0) {
+      return false;
+    }
+
+    // Vissa adaptrar returnerar svaret direkt i sendCommand-buffern (utan sniffning).
+    size_t parsed = parseAdapterResponse(sendBuf, outRespBytes, outRespBytesMax);
+    if (parsed > 0) {
+      *outRespLen = parsed;
+    }
+    return true;
+  };
+
+  // Standardfall: skicka payload som "22 01 05" och låt adaptern formatera ISO-TP.
+  bool sent = sendAndTryParse(req, reqLen);
+
+  // Fallback: vissa adaptrar/inställningar kräver explicit Single-Frame PCI-byte.
+  // Exempel: 03 22 01 05.
+  if (!sent || *outRespLen == 0) {
+    if (reqLen <= 7) {
+      uint8_t sf[8];
+      sf[0] = (uint8_t)reqLen;
+      memcpy(sf + 1, req, reqLen);
+
+      // Testa först minimal SF-längd (1 + reqLen).
+      sent = sendAndTryParse(sf, reqLen + 1);
+
+      // Extra fallback: testa full 8-byte frame med nollpadding.
+      if ((!sent || *outRespLen == 0) && reqLen + 1 < sizeof(sf)) {
+        memset(sf + 1 + reqLen, 0, sizeof(sf) - (1 + reqLen));
+        sent = sendAndTryParse(sf, sizeof(sf));
+      }
+    }
   }
 
-  // Vissa adaptrar returnerar svaret direkt i sendCommand-buffern (utan sniffning).
-  size_t parsed = parseAdapterResponse(sendBuf, outRespBytes, outRespBytesMax);
-  if (parsed > 0) {
-    *outRespLen = parsed;
+  if (!sent) {
+    return false;
   }
 
   // 5) Läs ISO-TP svar (single- och multi-frame)
