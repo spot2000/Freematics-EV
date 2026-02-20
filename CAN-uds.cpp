@@ -213,7 +213,7 @@ bool read_UDS(uint32_t txCanId,
   obd.setCANID(txCanId);
 
   // 3) Skicka request i normal adapter-mode.
-  //    Prefixa UDS payload med längdbyte enligt önskat format (03 22 01 05).
+  //    Skicka endast UDS-payload (t.ex. 22 01 05); adaptern hanterar längdfältet.
   outRespTxt[0] = '\0';
   *outRespLen = 0;
 
@@ -236,14 +236,7 @@ bool read_UDS(uint32_t txCanId,
     return true;
   };
 
-  uint8_t txFrame[33];
-  if (reqLen + 1 > sizeof(txFrame)) {
-    return false;
-  }
-  txFrame[0] = (uint8_t)reqLen;
-  memcpy(txFrame + 1, req, reqLen);
-
-  bool sent = sendAndTryParse(txFrame, reqLen + 1);
+  bool sent = sendAndTryParse(req, reqLen);
 
   if (!sent) {
     return false;
