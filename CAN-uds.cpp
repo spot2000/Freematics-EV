@@ -183,27 +183,14 @@ bool read_UDS(uint32_t txCanId,
   obd.setCANID(txCanId);
 
   // 3) Sätt RX filter
-  //    Använd exakt CAN-ID för att minimera brus på bussen och undvika
-  //    att orelaterade UDS-sessioner blandas in i parsningen.
-  const uint32_t rxMask = 0x7FF;
+  //    Tillåt svar inom ECU-blocket (0x7E8-0x7EF etc.) så vi inte tappar
+  //    legitima svar när ECU väljer närliggande svars-ID.
+  const uint32_t rxMask = 0x7F8;
   obd.setHeaderMask(rxMask);
   obd.setHeaderFilter(rxCanId & rxMask);
 
-  // 4) Starta sniffning och töm gamla rader INNAN ny request skickas.
-  //    Om flush görs efter sändning riskerar vi att kasta bort det riktiga
-  //    svaret när ECU svarar snabbt.
-  obd.sniff(true);
-  bool sniffEnabled = true;
-
-  uint32_t flushStart = millis();
-  while (millis() - flushStart < 40) {
-    byte junk[16];
-    if (obd.receiveData(junk, sizeof(junk)) <= 0) {
-      delay(1);
-    }
-  }
-
-  // 5) Skicka request
+  // 4) Skicka request i normal adapter-mode först.
+  //    Många adaptrar sköter ISO-TP/multiframe själva här.
   outRespTxt[0] = '\0';
   *outRespLen = 0;
 
@@ -228,6 +215,39 @@ bool read_UDS(uint32_t txCanId,
   // t.ex. 04 03 22 01 05.
   bool sent = sendAndTryParse(req, reqLen);
 
+  if (!sent) {
+    return false;
+  }
+
+  // Om adaptern redan gav ett komplett/parsat svar behöver vi inte sniffa.
+  if (*outRespLen > 0) {
+    size_t pos = 0;
+    for (size_t i = 0; i < *outRespLen && pos + 3 < outRespTxtSize; i++) {
+      snprintf(outRespTxt + pos, outRespTxtSize - pos, "%02X", outRespBytes[i]);
+      pos += 2;
+      if (pos + 2 < outRespTxtSize && i + 1 < *outRespLen) {
+        outRespTxt[pos++] = ' ';
+        outRespTxt[pos] = '\0';
+      }
+    }
+    outRespTxt[pos] = '\0';
+    return true;
+  }
+
+  // 5) Fallback: sniffa råa ISO-TP-ramar och rekonstruera payload lokalt.
+  obd.sniff(true);
+  bool sniffEnabled = true;
+
+  uint32_t flushStart = millis();
+  while (millis() - flushStart < 30) {
+    byte junk[16];
+    if (obd.receiveData(junk, sizeof(junk)) <= 0) {
+      delay(1);
+    }
+  }
+
+  // Skicka request igen när sniff är aktivt så vi garanterat fångar first frame.
+  sent = sendAndTryParse(req, reqLen);
   if (!sent) {
     if (sniffEnabled) {
       obd.sniff(false);
