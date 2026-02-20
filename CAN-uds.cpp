@@ -185,27 +185,11 @@ bool read_UDS(uint32_t txCanId,
     return true;
   };
 
-  // Standardfall: skicka payload som "22 01 05" och låt adaptern formatera ISO-TP.
+  // Skicka enbart UDS payload (t.ex. "22 01 05").
+  // Adaptern bygger själv ISO-TP single frame (03 22 01 05 ...).
+  // Om vi lägger på PCI-byte här blir det felaktigt dubbelprefix,
+  // t.ex. 04 03 22 01 05.
   bool sent = sendAndTryParse(req, reqLen);
-
-  // Fallback: vissa adaptrar/inställningar kräver explicit Single-Frame PCI-byte.
-  // Exempel: 03 22 01 05.
-  if (!sent || *outRespLen == 0) {
-    if (reqLen <= 7) {
-      uint8_t sf[8];
-      sf[0] = (uint8_t)reqLen;
-      memcpy(sf + 1, req, reqLen);
-
-      // Testa först minimal SF-längd (1 + reqLen).
-      sent = sendAndTryParse(sf, reqLen + 1);
-
-      // Extra fallback: testa full 8-byte frame med nollpadding.
-      if ((!sent || *outRespLen == 0) && reqLen + 1 < sizeof(sf)) {
-        memset(sf + 1 + reqLen, 0, sizeof(sf) - (1 + reqLen));
-        sent = sendAndTryParse(sf, sizeof(sf));
-      }
-    }
-  }
 
   if (!sent) {
     return false;
