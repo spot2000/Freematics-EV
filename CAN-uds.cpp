@@ -428,8 +428,8 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
     int rxLen = obd.sendCANMessage(msg, didReqLen, buf, sizeof(buf), 900);
 
     // Visa exakt rå adaptertext utan tolkning/parsning.
-    printRawAdapterResponse(buf, rxLen);
-    printIndexedAdapterFrames(buf);
+    //printRawAdapterResponse(buf, rxLen);
+    //printIndexedAdapterFrames(buf);
 
     const char* pFrames = buf;
     while (*pFrames) {
@@ -462,8 +462,8 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
       }
     }
 
-    Serial.print("DID svar är: ");
-    Serial.println(DIDanswer);
+    //Serial.print("DID svar är: ");
+    //Serial.println(DIDanswer);
 
     if (rxLen <= 0 && !buf[0]) {
       Serial.println("[UDS] RX timeout/no buffered data, retrying...");
