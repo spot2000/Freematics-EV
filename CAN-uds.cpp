@@ -406,12 +406,47 @@ void UDS_read_test() {
   Serial.println("[UDS] TX 7E4: 22 01 05 (filter 7EC)");
   bool gotRaw = false;
   for (int attempt = 0; attempt < 3 && !gotRaw; attempt++) {
+    String DIDanswer = "62";
     memset(buf, 0, sizeof(buf));
     int rxLen = obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf), 900);
 
     // Visa exakt rå adaptertext utan tolkning/parsning.
     printRawAdapterResponse(buf, rxLen);
     printIndexedAdapterFrames(buf);
+
+    const char* pFrames = buf;
+    while (*pFrames) {
+      while (*pFrames == '\r' || *pFrames == '\n') pFrames++;
+      if (!*pFrames) break;
+
+      const char* lineStart = pFrames;
+      while (*pFrames && *pFrames != '\r' && *pFrames != '\n') pFrames++;
+      const char* lineEnd = pFrames;
+
+      while (lineStart < lineEnd && (*lineStart == ' ' || *lineStart == '\t')) lineStart++;
+      while (lineEnd > lineStart && (lineEnd[-1] == ' ' || lineEnd[-1] == '\t')) lineEnd--;
+      if (lineEnd <= lineStart) continue;
+
+      size_t lineLen = (size_t)(lineEnd - lineStart);
+      if (lineLen >= 127) continue;
+
+      char line[128];
+      memcpy(line, lineStart, lineLen);
+      line[lineLen] = '\0';
+
+      uint8_t frame[64];
+      size_t frameLen = parseAdapterLinePayload(line, frame, sizeof(frame));
+      if (!frameLen) continue;
+
+      for (size_t i = 0; i < frameLen; i++) {
+        char hex[3];
+        snprintf(hex, sizeof(hex), "%02X", frame[i]);
+        DIDanswer += hex;
+      }
+    }
+
+    Serial.print("DID svar är: ");
+    Serial.println(DIDanswer);
 
     if (rxLen <= 0 && !buf[0]) {
       Serial.println("[UDS] RX timeout/no buffered data, retrying...");
