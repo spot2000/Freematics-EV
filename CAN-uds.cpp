@@ -263,42 +263,13 @@ static void printIndexedAdapterFrames(const char* text)
     size_t frameLen = parseAdapterLinePayload(line, frame, sizeof(frame));
     if (!frameLen) continue;
 
-    const uint8_t pciType = frame[0] >> 4;
-    const uint8_t* payload = frame;
-    size_t payloadLen = frameLen;
-
-    // Debug-utskriften ska visa UDS-payload (utan ISO-TP PCI/len-header)
-    // så första raden blir t.ex. "62 01 05 ..." istället för "10 xx 62 ...".
-    if (pciType == 0x0) {
-      size_t sfLen = frame[0] & 0x0F;
-      if (sfLen > frameLen - 1) sfLen = frameLen - 1;
-      payload = frame + 1;
-      payloadLen = sfLen;
-    } else if (pciType == 0x1) {
-      if (frameLen > 2) {
-        payload = frame + 2;
-        payloadLen = frameLen - 2;
-      } else {
-        payloadLen = 0;
-      }
-    } else if (pciType == 0x2) {
-      if (frameLen > 1) {
-        payload = frame + 1;
-        payloadLen = frameLen - 1;
-      } else {
-        payloadLen = 0;
-      }
-    }
-
-    if (!payloadLen) continue;
-
     Serial.print("[UDS] RX IDX ");
     Serial.print(frameIdx++);
     Serial.print(": ");
-    for (size_t i = 0; i < payloadLen; i++) {
+    for (size_t i = 0; i < frameLen; i++) {
       if (i) Serial.print(' ');
-      if (payload[i] < 16) Serial.print('0');
-      Serial.print(payload[i], HEX);
+      if (frame[i] < 16) Serial.print('0');
+      Serial.print(frame[i], HEX);
     }
     Serial.println();
   }
