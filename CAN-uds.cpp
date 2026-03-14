@@ -73,15 +73,6 @@ static bool isHexToken(const char* token, int len)
   return true;
 }
 
-static bool isDecimalToken(const char* token, int len)
-{
-  if (!token || len <= 0) return false;
-  for (int i = 0; i < len; i++) {
-    if (token[i] < '0' || token[i] > '9') return false;
-  }
-  return true;
-}
-
 // Extraherar payload-bytes ur en enskild adapterrad.
 // Stödjer rader som:
 //  "7EC 10 2E 62 ..."
@@ -122,25 +113,6 @@ static size_t parseAdapterLinePayload(const char* line, uint8_t* out, size_t out
 
   size_t parsed = parseHexBytes(payload, out, outMax);
   if (parsed) return parsed;
-
-  // Vissa adapterrader kan ha DLC som separat fält efter CAN-ID,
-  // t.ex. "7EC 8 62 01 05 ...". Om hela payloadsträngen inte går att
-  // tolka som jämna hex-byte, prova att hoppa över just detta fält.
-  const char* pDlc = payload;
-  int dlcTokenLen = 0;
-  while (pDlc[dlcTokenLen] && pDlc[dlcTokenLen] != ' ' && pDlc[dlcTokenLen] != '\t') dlcTokenLen++;
-  if (dlcTokenLen > 0 && dlcTokenLen <= 2 && isDecimalToken(pDlc, dlcTokenLen)) {
-    int dlc = 0;
-    for (int i = 0; i < dlcTokenLen; i++) {
-      dlc = dlc * 10 + (pDlc[i] - '0');
-    }
-    if (dlc >= 0 && dlc <= 64) {
-      const char* afterDlc = pDlc + dlcTokenLen;
-      while (*afterDlc == ' ' || *afterDlc == '\t') afterDlc++;
-      parsed = parseHexBytes(afterDlc, out, outMax);
-      if (parsed) return parsed;
-    }
-  }
 
   // Fallback: vissa adaptrar/loggformat kan lägga till extra kolumner före payload.
   // Skanna hela raden efter en möjlig PCI-byte (0x0*,0x1*,0x2*,0x3*) och
