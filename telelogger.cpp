@@ -797,23 +797,44 @@ void process()
     // Undvik att blanda periodisk OBD-pollning (7DF/5xx) med UDS-test i samma loopvarv.
     // Det gör sniff-spåret renare och minskar risken att gamla svar ligger kvar i adapterns RX-buffer.
     if (runUdsTest) {
-      // Read from BMS
+      // Read from BMS (7E4)
       // Read DID 220101
       String didAnswer = UDS_read_DID("7E4", "220101");
-      Serial.print("[UDS] DID svar (sträng): ");
+      Serial.print("[UDS] DID svar BMS (0x7E4, 220101): ");
       Serial.println(didAnswer);
       // Read DID 220105
       String didAnswer = UDS_read_DID("7E4", "220105");
-      Serial.print("[UDS] DID svar (sträng): ");
+      Serial.print("[UDS] DID svar BMS (0x7E4, 220105): ");
       Serial.println(didAnswer);
-      // Read DID 220106
-      String didAnswer = UDS_read_DID("7E4", "220106");
-      Serial.print("[UDS] DID svar (sträng): ");
+            
+      // Read from VCMS (744)
+      // Read DID 22E001
+      String didAnswer = UDS_read_DID("744", "22E001")
+      Serial.print("[UDS] DID svar VCMS (0x744, 22E001): ");
+      Serial.println(didAnswer);
+
+      // Read from BDC-TPMS (7A0)
+      // Read DID 22C000
+      String didAnswer = UDS_read_DID("7A0", "22C000");
+      Serial.print("[UDS] DID svar BDC-TPMS (0x7A0, 22C000): ");
       Serial.println(didAnswer);
       
-      // Read from BMS
-      String didAnswer = UDS_read_DID("7E4", "220101");
-      Serial.print("[UDS] DID svar (sträng): ");
+      // Read from AIRCON (7B3)
+      // Read DID 220100
+      String didAnswer = UDS_read_DID("7B3", "220100");
+      Serial.print("[UDS] DID svar AIRCON (0x7B3, 220100): ");
+      Serial.println(didAnswer);
+      
+      // Read from CLUSTER (7C6)
+      // Read DID 22B002
+      String didAnswer = UDS_read_DID("7C6", "22B002");
+      Serial.print("[UDS] DID svar CLUSTER (0x7C6, 22B002): ");
+      Serial.println(didAnswer);
+      
+      // Read from VCU (7E2)
+      // Read DID 22E004
+      String didAnswer = UDS_read_DID("7E2", "22E004");
+      Serial.print("[UDS] DID svar VCU (0x7E2, 22E004): ");
       Serial.println(didAnswer);
 
 
