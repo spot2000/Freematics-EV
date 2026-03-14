@@ -111,7 +111,33 @@ static size_t parseAdapterLinePayload(const char* line, uint8_t* out, size_t out
     }
   }
 
-  return parseHexBytes(payload, out, outMax);
+  size_t parsed = parseHexBytes(payload, out, outMax);
+  if (parsed) return parsed;
+
+  // Fallback: vissa adaptrar/loggformat kan lägga till extra kolumner före payload.
+  // Skanna hela raden efter en möjlig PCI-byte (0x0*,0x1*,0x2*,0x3*) och
+  // försök därefter tolka resten som hex-bytes.
+  const char* p = line;
+  while (*p) {
+    while (*p == ' ' || *p == '\t' || *p == ':' || *p == '|') p++;
+    if (!*p) break;
+
+    const char* tok = p;
+    int tokLen = 0;
+    while (p[tokLen] && p[tokLen] != ' ' && p[tokLen] != '\t' && p[tokLen] != ':' && p[tokLen] != '|') tokLen++;
+
+    if (tokLen == 2 && isHexToken(tok, tokLen)) {
+      int b = (hexNibble(tok[0]) << 4) | hexNibble(tok[1]);
+      int pciType = (b >> 4) & 0x0F;
+      if (pciType <= 0x3) {
+        parsed = parseHexBytes(tok, out, outMax);
+        if (parsed) return parsed;
+      }
+    }
+    p += tokLen;
+  }
+
+  return 0;
 }
 
 static size_t collectIsoTpPayload(const char* text,
@@ -326,7 +352,7 @@ bool read_UDS(uint32_t txCanId,
   auto sendAndTryParse = [&](const uint8_t* data, size_t len) -> bool {
     char sendBuf[1024];
     memset(sendBuf, 0, sizeof(sendBuf));
-    int sendResp = obd.sendCANMessage((byte*)data, (byte)len, sendBuf, (int)sizeof(sendBuf), 450);
+    int sendResp = obd.sendCANMessage((byte*)data, (byte)len, sendBuf, (int)sizeof(sendBuf), 900);
 
     bool gotText = sendBuf[0] != '\0';
     if (sendResp <= 0 && !gotText) return false;
@@ -341,7 +367,7 @@ bool read_UDS(uint32_t txCanId,
   bool sent = false;
   for (int attempt = 0; attempt < 3 && !*outRespLen; attempt++) {
     sent = sendAndTryParse(req, reqLen) || sent;
-    if (!*outRespLen) delay(10);
+    if (!*outRespLen) delay(30);
   }
 
   if (!sent) {
@@ -381,7 +407,7 @@ void UDS_read_test() {
   bool gotRaw = false;
   for (int attempt = 0; attempt < 3 && !gotRaw; attempt++) {
     memset(buf, 0, sizeof(buf));
-    int rxLen = obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf), 450);
+    int rxLen = obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf), 900);
 
     // Visa exakt rå adaptertext utan tolkning/parsning.
     printRawAdapterResponse(buf, rxLen);
@@ -389,7 +415,7 @@ void UDS_read_test() {
 
     if (rxLen <= 0 && !buf[0]) {
       Serial.println("[UDS] RX timeout/no buffered data, retrying...");
-      delay(10);
+      delay(30);
       continue;
     }
 
@@ -412,7 +438,7 @@ void UDS_read_test() {
       gotRaw = true;
     } else {
       Serial.println("[UDS] RX only adapter echo/empty, retrying...");
-      delay(10);
+      delay(30);
     }
   }
 
