@@ -631,7 +631,7 @@ void COBD::setCANID(uint16_t id)
 }
 
 // Skickar CAN-data som hexsträng och returnerar antal svarstecken.
-int COBD::sendCANMessage(byte msg[], int len, char* buf, int bufsize)
+int COBD::sendCANMessage(byte msg[], int len, char* buf, int bufsize, unsigned int timeout)
 {
 	if (!link) return 0;
 	char cmd[258];
@@ -641,5 +641,5 @@ int COBD::sendCANMessage(byte msg[], int len, char* buf, int bufsize)
 	}
 	cmd[len * 2] = '\r';
 	cmd[len * 2 + 1] = 0;
-	return link->sendCommand(cmd, buf, bufsize, 100);
+	return link->sendCommand(cmd, buf, bufsize, timeout);
 }

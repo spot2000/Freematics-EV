@@ -159,7 +159,7 @@ public:
 	 * @param bufsize Storlek på svarsbuffert.
 	 * @return Antal svarstecken från adaptern, eller 0 vid fel.
 	 */
-	int sendCANMessage(byte msg[], int len, char* buf, int bufsize);
+	int sendCANMessage(byte msg[], int len, char* buf, int bufsize, unsigned int timeout = 100);
 	// set current PID mode
 	byte dataMode = 1;
 	// occurrence of errors

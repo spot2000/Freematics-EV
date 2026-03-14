@@ -12,6 +12,9 @@
 
 extern COBD obd;  // eller globalt: COBD obd;
 
+static bool isExpectedUdsReply(const uint8_t* data, size_t len,
+                               const uint8_t* req, size_t reqLen);
+
 static int hexNibble(char c) {
   if (c >= '0' && c <= '9') return c - '0';
   if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
@@ -61,10 +64,56 @@ static size_t parseHexBytes(const char* s, uint8_t* out, size_t outMax) {
   return hexStringToBytes(s, out, outMax);
 }
 
-// Försöker extrahera en data-rad ur adaptertext (echo/prompt/headers förekommer ofta).
-static size_t parseAdapterResponse(const char* text, uint8_t* out, size_t outMax)
+static bool isHexToken(const char* token, int len)
 {
-  if (!text || !out || !outMax) return 0;
+  if (!token || len <= 0) return false;
+  for (int i = 0; i < len; i++) {
+    if (hexNibble(token[i]) < 0) return false;
+  }
+  return true;
+}
+
+// Extraherar payload-bytes ur en enskild adapterrad.
+// Stödjer rader som:
+//  "7EC 10 2E 62 ..."
+//  "0: 10 2E 62 ..."
+//  "10 2E 62 ..."
+static size_t parseAdapterLinePayload(const char* line, uint8_t* out, size_t outMax)
+{
+  if (!line || !out || !outMax) return 0;
+
+  const char* payload = line;
+
+  // Hoppa över index-prefix "N:".
+  int idxDigits = 0;
+  while (payload[idxDigits] >= '0' && payload[idxDigits] <= '9') idxDigits++;
+  if (idxDigits > 0 && payload[idxDigits] == ':') {
+    payload += idxDigits + 1;
+    while (*payload == ' ') payload++;
+  }
+
+  // Hoppa över CAN-ID prefix (3 eller 8 hextecken) men inte första databyten.
+  int tokenLen = 0;
+  while (payload[tokenLen] && payload[tokenLen] != ' ') tokenLen++;
+  if ((tokenLen == 3 || tokenLen == 8) && payload[tokenLen] == ' ' && isHexToken(payload, tokenLen)) {
+    payload += tokenLen + 1;
+    while (*payload == ' ') payload++;
+  }
+
+  return parseHexBytes(payload, out, outMax);
+}
+
+static size_t collectIsoTpPayload(const char* text,
+                                  uint8_t* out, size_t outMax,
+                                  const uint8_t* req, size_t reqLen)
+{
+  if (!text || !out || !outMax || !req || !reqLen) return 0;
+
+  uint8_t ffBuffer[512];
+  size_t ffWritten = 0;
+  size_t ffExpected = 0;
+  bool gotFirstFrame = false;
+  uint8_t expectedSeq = 1;
 
   const char* p = text;
   while (*p) {
@@ -80,109 +129,74 @@ static size_t parseAdapterResponse(const char* text, uint8_t* out, size_t outMax
     if (lineEnd <= lineStart) continue;
 
     size_t lineLen = (size_t)(lineEnd - lineStart);
-    if (lineLen >= 2 && lineLen < 128) {
-      char line[128];
-      memcpy(line, lineStart, lineLen);
-      line[lineLen] = '\0';
+    if (lineLen >= 127) continue;
 
-      // Rader som "2: FF 00 ...": hoppa radindex-prefix.
-      const char* payload = line;
-      int prefixDigits = 0;
-      while (payload[prefixDigits] && payload[prefixDigits] >= '0' && payload[prefixDigits] <= '9') {
-        prefixDigits++;
+    char line[128];
+    memcpy(line, lineStart, lineLen);
+    line[lineLen] = '\0';
+
+    uint8_t frame[64];
+    size_t frameLen = parseAdapterLinePayload(line, frame, sizeof(frame));
+    if (!frameLen) continue;
+
+    uint8_t pciType = frame[0] >> 4;
+
+    if (pciType == 0x0) {
+      size_t sfLen = frame[0] & 0x0F;
+      if (sfLen > frameLen - 1) sfLen = frameLen - 1;
+      if (sfLen == 0 || sfLen > outMax) continue;
+      memcpy(out, frame + 1, sfLen);
+      if (isExpectedUdsReply(out, sfLen, req, reqLen)) {
+        return sfLen;
       }
-      if (prefixDigits > 0 && payload[prefixDigits] == ':') {
-        payload += prefixDigits + 1;
-        while (*payload == ' ') payload++;
-      }
-
-      // Rader som "7EC 06 62 01 05 ...": hoppa CAN-ID + längdbyte.
-      int firstTokenLen = 0;
-      while (payload[firstTokenLen] && payload[firstTokenLen] != ' ') firstTokenLen++;
-      if ((firstTokenLen == 3 || firstTokenLen == 8) && payload[firstTokenLen] == ' ') {
-        bool tokenHex = true;
-        for (int i = 0; i < firstTokenLen; i++) {
-          if (hexNibble(payload[i]) < 0) {
-            tokenHex = false;
-            break;
-          }
-        }
-        if (tokenHex) {
-          const char* rest = payload + firstTokenLen + 1;
-          if (rest[0] && rest[1] && hexNibble(rest[0]) >= 0 && hexNibble(rest[1]) >= 0) {
-            rest += 2;
-            while (*rest == ' ') rest++;
-          }
-          size_t n = parseHexBytes(rest, out, outMax);
-          if (n) return n;
-        }
-      }
-
-      size_t n = parseHexBytes(payload, out, outMax);
-      if (n) return n;
-    }
-  }
-  return 0;
-}
-
-// Samlar ihop svar i formatet "0: ...\r1: ..." (likt getVIN-hanteringen).
-static size_t parseIndexedAdapterFrames(const char* text, uint8_t* out, size_t outMax)
-{
-  if (!text || !out || !outMax) return 0;
-
-  struct IndexedLine {
-    bool present;
-    uint8_t bytes[64];
-    size_t len;
-  } lines[32];
-  memset(lines, 0, sizeof(lines));
-
-  const char* p = text;
-  while (*p) {
-    while (*p == '\r' || *p == '\n' || *p == ' ') p++;
-    if (!*p) break;
-
-    const char* lineStart = p;
-    while (*p && *p != '\r' && *p != '\n') p++;
-    const char* lineEnd = p;
-
-    int idx = 0;
-    const char* q = lineStart;
-    while (q < lineEnd && *q >= '0' && *q <= '9') {
-      idx = idx * 10 + (*q - '0');
-      q++;
-    }
-    if (q == lineStart || q >= lineEnd || *q != ':' || idx < 0 || idx >= (int)(sizeof(lines) / sizeof(lines[0]))) {
       continue;
     }
 
-    q++;  // hoppa ':'
-    while (q < lineEnd && *q == ' ') q++;
-    if (q >= lineEnd) continue;
+    if (pciType == 0x1) {
+      if (frameLen < 2) continue;
+      ffExpected = ((size_t)(frame[0] & 0x0F) << 8) | frame[1];
+      ffWritten = 0;
+      gotFirstFrame = false;
+      expectedSeq = 1;
+      if (frameLen > 2) {
+        size_t copyLen = frameLen - 2;
+        if (copyLen > sizeof(ffBuffer)) copyLen = sizeof(ffBuffer);
+        memcpy(ffBuffer, frame + 2, copyLen);
+        ffWritten = copyLen;
+      }
+      if (ffExpected >= 3 && ffWritten >= 3 && isExpectedUdsReply(ffBuffer, ffWritten, req, reqLen)) {
+        gotFirstFrame = true;
+      }
+      continue;
+    }
 
-    size_t payloadLen = (size_t)(lineEnd - q);
-    if (!payloadLen || payloadLen >= 128) continue;
+    if (pciType == 0x2 && gotFirstFrame && ffExpected > ffWritten) {
+      uint8_t seq = frame[0] & 0x0F;
+      if (seq != expectedSeq) {
+        expectedSeq = (uint8_t)((seq + 1) & 0x0F);
+      } else {
+        expectedSeq = (uint8_t)((expectedSeq + 1) & 0x0F);
+      }
 
-    char payload[128];
-    memcpy(payload, q, payloadLen);
-    payload[payloadLen] = '\0';
+      if (frameLen > 1) {
+        size_t copyLen = frameLen - 1;
+        size_t remain = ffExpected - ffWritten;
+        if (copyLen > remain) copyLen = remain;
+        if (copyLen > sizeof(ffBuffer) - ffWritten) copyLen = sizeof(ffBuffer) - ffWritten;
+        memcpy(ffBuffer + ffWritten, frame + 1, copyLen);
+        ffWritten += copyLen;
+      }
 
-    size_t n = parseHexBytes(payload, lines[idx].bytes, sizeof(lines[idx].bytes));
-    if (!n) continue;
-
-    lines[idx].present = true;
-    lines[idx].len = n;
+      if (ffWritten >= ffExpected) {
+        size_t outLen = ffExpected;
+        if (outLen > outMax) outLen = outMax;
+        memcpy(out, ffBuffer, outLen);
+        return outLen;
+      }
+    }
   }
 
-  size_t written = 0;
-  for (size_t i = 0; i < sizeof(lines) / sizeof(lines[0]) && written < outMax; i++) {
-    if (!lines[i].present || !lines[i].len) continue;
-    size_t copyLen = lines[i].len;
-    if (copyLen > outMax - written) copyLen = outMax - written;
-    memcpy(out + written, lines[i].bytes, copyLen);
-    written += copyLen;
-  }
-  return written;
+  return 0;
 }
 
 static void printIndexedAdapterFrames(const char* text)
@@ -274,18 +288,13 @@ bool read_UDS(uint32_t txCanId,
 
   auto sendAndTryParse = [&](const uint8_t* data, size_t len) -> bool {
     char sendBuf[1024];
-    int sendResp = obd.sendCANMessage((byte*)data, (byte)len, sendBuf, (int)sizeof(sendBuf));
+    int sendResp = obd.sendCANMessage((byte*)data, (byte)len, sendBuf, (int)sizeof(sendBuf), 450);
     if (sendResp <= 0) {
       return false;
     }
 
-    // Först: försök läsa indexerade rader ("0:", "1:"), likt getVIN-flödet.
-    size_t parsed = parseIndexedAdapterFrames(sendBuf, outRespBytes, outRespBytesMax);
-    if (!parsed) {
-      // Fallback: generell rad-parser.
-      parsed = parseAdapterResponse(sendBuf, outRespBytes, outRespBytesMax);
-    }
-    if (parsed > 0 && isExpectedUdsReply(outRespBytes, parsed, req, reqLen)) {
+    size_t parsed = collectIsoTpPayload(sendBuf, outRespBytes, outRespBytesMax, req, reqLen);
+    if (parsed > 0) {
       *outRespLen = parsed;
     }
     return true;
@@ -334,11 +343,23 @@ void UDS_read_test() {
   bool gotRaw = false;
   for (int attempt = 0; attempt < 3 && !gotRaw; attempt++) {
     memset(buf, 0, sizeof(buf));
-    if (!obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf))) continue;
+    if (!obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf), 450)) continue;
 
     // Visa exakt rå adaptertext utan tolkning/parsning.
     Serial.print("[UDS] RX RAW: ");
     Serial.println(buf);
+
+    uint8_t udsBytes[128];
+    size_t udsLen = collectIsoTpPayload(buf, udsBytes, sizeof(udsBytes), msg, sizeof(msg));
+    if (udsLen) {
+      Serial.print("[UDS] RX PARSED ");
+      for (size_t i = 0; i < udsLen; i++) {
+        if (i) Serial.print(' ');
+        if (udsBytes[i] < 16) Serial.print('0');
+        Serial.print(udsBytes[i], HEX);
+      }
+      Serial.println();
+    }
 
     // Markera lyckat om vi fick någon faktisk text tillbaka (inte bara tomrad/OK-echo).
     const char* p = buf;
