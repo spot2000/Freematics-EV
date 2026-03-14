@@ -12,6 +12,9 @@
 
 extern COBD obd;  // eller globalt: COBD obd;
 
+// Cacha senast använda TX-CAN-ID för att undvika onödiga ATSH/setCANID-anrop.
+static uint32_t g_prevUdsTxCanId = 0xFFFFFFFF;
+
 static bool isExpectedUdsReply(const uint8_t* data, size_t len,
                                const uint8_t* req, size_t reqLen);
 
@@ -403,7 +406,11 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
   uint32_t txCanId = (uint32_t)strtoul(canIdHex, nullptr, 16);
 
   // Lyssna på ECU-svar från txCanId + 0x8 (normal 11-bit addressing).
-  obd.setCANID(txCanId);
+  // Sätt endast CAN-ID när det ändrats sedan föregående UDS_read_DID-anrop.
+  if (g_prevUdsTxCanId != txCanId) {
+    obd.setCANID(txCanId);
+    g_prevUdsTxCanId = txCanId;
+  }
   obd.setHeaderMask(0xFFFFFF);
   obd.setHeaderFilter(txCanId + 0x8);
 
