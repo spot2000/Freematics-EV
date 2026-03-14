@@ -83,6 +83,7 @@ static size_t parseAdapterLinePayload(const char* line, uint8_t* out, size_t out
   if (!line || !out || !outMax) return 0;
 
   const char* payload = line;
+  while (*payload == ' ' || *payload == '\t') payload++;
 
   // Hoppa över index-prefix "N:".
   int idxDigits = 0;
@@ -93,11 +94,21 @@ static size_t parseAdapterLinePayload(const char* line, uint8_t* out, size_t out
   }
 
   // Hoppa över CAN-ID prefix (3 eller 8 hextecken) men inte första databyten.
+  // Stödjer även varianter som "0x7EC" och/eller ':' separator.
+  if (payload[0] == '0' && (payload[1] == 'x' || payload[1] == 'X')) {
+    payload += 2;
+  }
+
   int tokenLen = 0;
-  while (payload[tokenLen] && payload[tokenLen] != ' ') tokenLen++;
-  if ((tokenLen == 3 || tokenLen == 8) && payload[tokenLen] == ' ' && isHexToken(payload, tokenLen)) {
-    payload += tokenLen + 1;
-    while (*payload == ' ') payload++;
+  while (payload[tokenLen] && payload[tokenLen] != ' ' && payload[tokenLen] != ':') tokenLen++;
+  if ((tokenLen == 3 || tokenLen == 8) && isHexToken(payload, tokenLen)) {
+    if (payload[tokenLen] == ':') {
+      payload += tokenLen + 1;
+      while (*payload == ' ') payload++;
+    } else if (payload[tokenLen] == ' ') {
+      payload += tokenLen + 1;
+      while (*payload == ' ') payload++;
+    }
   }
 
   return parseHexBytes(payload, out, outMax);
@@ -203,6 +214,7 @@ static void printIndexedAdapterFrames(const char* text)
 {
   if (!text) return;
   const char* p = text;
+  int frameIdx = 0;
   while (*p) {
     while (*p == '\r' || *p == '\n') p++;
     if (!*p) break;
@@ -211,16 +223,27 @@ static void printIndexedAdapterFrames(const char* text)
     while (*p && *p != '\r' && *p != '\n') p++;
     const char* lineEnd = p;
 
+    while (lineStart < lineEnd && (*lineStart == ' ' || *lineStart == '\t')) lineStart++;
     if (lineEnd <= lineStart) continue;
-    if (*lineStart < '0' || *lineStart > '9') continue;
 
-    const char* q = lineStart;
-    while (q < lineEnd && *q >= '0' && *q <= '9') q++;
-    if (q >= lineEnd || *q != ':') continue;
+    size_t lineLen = (size_t)(lineEnd - lineStart);
+    if (lineLen >= 127) continue;
+
+    char line[128];
+    memcpy(line, lineStart, lineLen);
+    line[lineLen] = '\0';
+
+    uint8_t frame[64];
+    size_t frameLen = parseAdapterLinePayload(line, frame, sizeof(frame));
+    if (!frameLen) continue;
 
     Serial.print("[UDS] RX IDX ");
-    while (lineStart < lineEnd) {
-      Serial.print(*lineStart++);
+    Serial.print(frameIdx++);
+    Serial.print(": ");
+    for (size_t i = 0; i < frameLen; i++) {
+      if (i) Serial.print(' ');
+      if (frame[i] < 16) Serial.print('0');
+      Serial.print(frame[i], HEX);
     }
     Serial.println();
   }
