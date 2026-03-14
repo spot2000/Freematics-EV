@@ -797,11 +797,7 @@ void process()
     // Undvik att blanda periodisk OBD-pollning (7DF/5xx) med UDS-test i samma loopvarv.
     // Det gör sniff-spåret renare och minskar risken att gamla svar ligger kvar i adapterns RX-buffer.
     if (runUdsTest) {
-      String udsResp = UDS_read_test(0x7E4, 0x220105);
-      if (udsResp.length()) {
-        Serial.print("[UDS] RESPONSE ");
-        Serial.println(udsResp);
-      }
+      UDS_read_test();
       lastUdsRead = millis();
     } else {
       processOBD(buffer);
