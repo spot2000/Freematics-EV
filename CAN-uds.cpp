@@ -130,57 +130,86 @@ static size_t parseIndexedAdapterFrames(const char* text, uint8_t* out, size_t o
 {
   if (!text || !out || !outMax) return 0;
 
-  // Acceptera indexerade rader även om första mottagna raden inte råkar vara "0:".
+  struct IndexedLine {
+    bool present;
+    uint8_t bytes[64];
+    size_t len;
+  } lines[32];
+  memset(lines, 0, sizeof(lines));
+
   const char* p = text;
   while (*p) {
     while (*p == '\r' || *p == '\n' || *p == ' ') p++;
-    if (!*p) return 0;
-    if (*p >= '0' && *p <= '9') {
-      const char* q = p + 1;
-      while (*q >= '0' && *q <= '9') q++;
-      if (*q == ':') break;
+    if (!*p) break;
+
+    const char* lineStart = p;
+    while (*p && *p != '\r' && *p != '\n') p++;
+    const char* lineEnd = p;
+
+    int idx = 0;
+    const char* q = lineStart;
+    while (q < lineEnd && *q >= '0' && *q <= '9') {
+      idx = idx * 10 + (*q - '0');
+      q++;
     }
-    while (*p && *p != '\n' && *p != '\r') p++;
+    if (q == lineStart || q >= lineEnd || *q != ':' || idx < 0 || idx >= (int)(sizeof(lines) / sizeof(lines[0]))) {
+      continue;
+    }
+
+    q++;  // hoppa ':'
+    while (q < lineEnd && *q == ' ') q++;
+    if (q >= lineEnd) continue;
+
+    size_t payloadLen = (size_t)(lineEnd - q);
+    if (!payloadLen || payloadLen >= 128) continue;
+
+    char payload[128];
+    memcpy(payload, q, payloadLen);
+    payload[payloadLen] = '\0';
+
+    size_t n = parseHexBytes(payload, lines[idx].bytes, sizeof(lines[idx].bytes));
+    if (!n) continue;
+
+    lines[idx].present = true;
+    lines[idx].len = n;
   }
-  if (!*p) return 0;
 
   size_t written = 0;
-  while (p && written < outMax) {
-    while (*p >= '0' && *p <= '9') p++;
-    if (*p != ':') break;
-    p++; // hoppa över ':'
-    while (*p == ' ') p++;
-
-    const char* lineEnd = p;
-    while (*lineEnd && *lineEnd != '\r' && *lineEnd != '\n') lineEnd++;
-
-    size_t lineLen = (size_t)(lineEnd - p);
-    if (lineLen > 0 && lineLen < 128) {
-      char line[128];
-      memcpy(line, p, lineLen);
-      line[lineLen] = '\0';
-
-      size_t n = parseHexBytes(line, out + written, outMax - written);
-      written += n;
-    }
-
-    // Leta nästa rad med indexprefix N:
-    p = lineEnd;
-    while (*p) {
-      while (*p == '\r' || *p == '\n' || *p == ' ') p++;
-      if (!*p) break;
-      if (*p >= '0' && *p <= '9') {
-        const char* q = p + 1;
-        while (*q >= '0' && *q <= '9') q++;
-        if (*q == ':') {
-          break;
-        }
-      }
-      while (*p && *p != '\n' && *p != '\r') p++;
-    }
+  for (size_t i = 0; i < sizeof(lines) / sizeof(lines[0]) && written < outMax; i++) {
+    if (!lines[i].present || !lines[i].len) continue;
+    size_t copyLen = lines[i].len;
+    if (copyLen > outMax - written) copyLen = outMax - written;
+    memcpy(out + written, lines[i].bytes, copyLen);
+    written += copyLen;
   }
-
   return written;
+}
+
+static void printIndexedAdapterFrames(const char* text)
+{
+  if (!text) return;
+  const char* p = text;
+  while (*p) {
+    while (*p == '\r' || *p == '\n') p++;
+    if (!*p) break;
+
+    const char* lineStart = p;
+    while (*p && *p != '\r' && *p != '\n') p++;
+    const char* lineEnd = p;
+
+    if (lineEnd <= lineStart) continue;
+    if (*lineStart < '0' || *lineStart > '9') continue;
+
+    const char* q = lineStart;
+    while (q < lineEnd && *q >= '0' && *q <= '9') q++;
+    if (q >= lineEnd || *q != ':') continue;
+
+    Serial.print("[UDS] RX IDX ");
+    while (lineStart < lineEnd) {
+      Serial.print(*lineStart++);
+    }
+    Serial.println();
+  }
 }
 
 static bool isExpectedUdsReply(const uint8_t* data, size_t len,
@@ -244,7 +273,7 @@ bool read_UDS(uint32_t txCanId,
   *outRespLen = 0;
 
   auto sendAndTryParse = [&](const uint8_t* data, size_t len) -> bool {
-    char sendBuf[256];
+    char sendBuf[1024];
     int sendResp = obd.sendCANMessage((byte*)data, (byte)len, sendBuf, (int)sizeof(sendBuf));
     if (sendResp <= 0) {
       return false;
@@ -298,7 +327,7 @@ void UDS_read_test() {
   obd.setHeaderFilter(0x7EC);
 
   byte msg[] = {0x22, 0x01, 0x05};
-  char buf[128];
+  char buf[1024];
   memset(buf, 0, sizeof(buf));
 
   Serial.println("[UDS] TX 7E4: 22 01 05 (filter 7EC)");
@@ -310,6 +339,7 @@ void UDS_read_test() {
     // Visa rå adaptertext för att enklare felsöka i serial loggen.
     Serial.print("[UDS] RX RAW: ");
     Serial.println(buf);
+    printIndexedAdapterFrames(buf);
 
     // Försök också parsa till bytes för tydligare validering av multi-frame payload.
     uint8_t resp[128];
