@@ -803,37 +803,37 @@ void process()
       Serial.print("[UDS] DID svar BMS (0x7E4, 220101): ");
       Serial.println(didAnswer);
       // Read DID 220105
-      String didAnswer = UDS_read_DID("7E4", "220105");
+      didAnswer = UDS_read_DID("7E4", "220105");
       Serial.print("[UDS] DID svar BMS (0x7E4, 220105): ");
       Serial.println(didAnswer);
             
       // Read from VCMS (744)
       // Read DID 22E001
-      String didAnswer = UDS_read_DID("744", "22E001")
+      didAnswer = UDS_read_DID("744", "22E001");
       Serial.print("[UDS] DID svar VCMS (0x744, 22E001): ");
       Serial.println(didAnswer);
 
       // Read from BDC-TPMS (7A0)
       // Read DID 22C000
-      String didAnswer = UDS_read_DID("7A0", "22C000");
+      didAnswer = UDS_read_DID("7A0", "22C000");
       Serial.print("[UDS] DID svar BDC-TPMS (0x7A0, 22C000): ");
       Serial.println(didAnswer);
       
       // Read from AIRCON (7B3)
       // Read DID 220100
-      String didAnswer = UDS_read_DID("7B3", "220100");
+      didAnswer = UDS_read_DID("7B3", "220100");
       Serial.print("[UDS] DID svar AIRCON (0x7B3, 220100): ");
       Serial.println(didAnswer);
       
       // Read from CLUSTER (7C6)
       // Read DID 22B002
-      String didAnswer = UDS_read_DID("7C6", "22B002");
+      didAnswer = UDS_read_DID("7C6", "22B002");
       Serial.print("[UDS] DID svar CLUSTER (0x7C6, 22B002): ");
       Serial.println(didAnswer);
       
       // Read from VCU (7E2)
       // Read DID 22E004
-      String didAnswer = UDS_read_DID("7E2", "22E004");
+      didAnswer = UDS_read_DID("7E2", "22E004");
       Serial.print("[UDS] DID svar VCU (0x7E2, 22E004): ");
       Serial.println(didAnswer);
 
