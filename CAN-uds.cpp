@@ -331,39 +331,27 @@ void UDS_read_test() {
   memset(buf, 0, sizeof(buf));
 
   Serial.println("[UDS] TX 7E4: 22 01 05 (filter 7EC)");
-  bool gotValid = false;
-  for (int attempt = 0; attempt < 3 && !gotValid; attempt++) {
+  bool gotRaw = false;
+  for (int attempt = 0; attempt < 3 && !gotRaw; attempt++) {
     memset(buf, 0, sizeof(buf));
     if (!obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf))) continue;
 
-    // Visa rå adaptertext för att enklare felsöka i serial loggen.
+    // Visa exakt rå adaptertext utan tolkning/parsning.
     Serial.print("[UDS] RX RAW: ");
     Serial.println(buf);
-    printIndexedAdapterFrames(buf);
 
-    // Försök också parsa till bytes för tydligare validering av multi-frame payload.
-    uint8_t resp[128];
-    size_t respLen = parseIndexedAdapterFrames(buf, resp, sizeof(resp));
-    if (!respLen) {
-      respLen = parseAdapterResponse(buf, resp, sizeof(resp));
-    }
-
-    if (respLen && isExpectedUdsReply(resp, respLen, msg, sizeof(msg))) {
-      Serial.print("[UDS] RX BYTES: ");
-      for (size_t i = 0; i < respLen; i++) {
-        if (i) Serial.print(' ');
-        if (resp[i] < 0x10) Serial.print('0');
-        Serial.print(resp[i], HEX);
-      }
-      Serial.println();
-      gotValid = true;
+    // Markera lyckat om vi fick någon faktisk text tillbaka (inte bara tomrad/OK-echo).
+    const char* p = buf;
+    while (*p == ' ' || *p == '\r' || *p == '\n') p++;
+    if (*p && strcmp(p, "OK") != 0) {
+      gotRaw = true;
     } else {
-      Serial.println("[UDS] RX parse miss/irrelevant frame (se RAW ovan)");
+      Serial.println("[UDS] RX only adapter echo/empty, retrying...");
       delay(10);
     }
   }
 
-  if (!gotValid) {
-    Serial.println("[UDS] No valid UDS response after retries");
+  if (!gotRaw) {
+    Serial.println("[UDS] No raw UDS response after retries");
   }
 }
