@@ -392,23 +392,40 @@ bool read_UDS(uint32_t txCanId,
 }
 
 
-void UDS_read_test() {
-  // Baserat på testkod för att verifiera multi-frame i serial logg och CAN-sniff.
-  // TX: 0x7E4, lyssna på ECU-svar från 0x7EC.
-  obd.setCANID(0x7E4);
-  obd.setHeaderMask(0xFFFFFF);
-  obd.setHeaderFilter(0x7EC);
+String UDS_read_DID(const char* canIdHex, const char* didHex) {
+  // TX/CAN-ID och DID kan skickas som hexsträngar, t.ex. "7E4" och "220101".
+  uint8_t didReq[32];
+  size_t didReqLen = hexStringToBytes(didHex, didReq, sizeof(didReq));
+  if (!canIdHex || !didReqLen) {
+    return String();
+  }
 
-  byte msg[] = {0x22, 0x01, 0x05};
+  uint32_t txCanId = (uint32_t)strtoul(canIdHex, nullptr, 16);
+
+  // Lyssna på ECU-svar från txCanId + 0x8 (normal 11-bit addressing).
+  obd.setCANID(txCanId);
+  obd.setHeaderMask(0xFFFFFF);
+  obd.setHeaderFilter(txCanId + 0x8);
+
+  byte msg[32];
+  memcpy(msg, didReq, didReqLen);
   char buf[1024];
   memset(buf, 0, sizeof(buf));
 
-  Serial.println("[UDS] TX 7E4: 22 01 05 (filter 7EC)");
+  Serial.print("[UDS] TX ");
+  Serial.print(canIdHex);
+  Serial.print(": ");
+  Serial.print(didHex);
+  Serial.print(" (filter ");
+  Serial.print(txCanId + 0x8, HEX);
+  Serial.println(")");
+
   bool gotRaw = false;
+  String DIDanswer = "62";
   for (int attempt = 0; attempt < 3 && !gotRaw; attempt++) {
-    String DIDanswer = "62";
+    DIDanswer = "62";
     memset(buf, 0, sizeof(buf));
-    int rxLen = obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf), 900);
+    int rxLen = obd.sendCANMessage(msg, didReqLen, buf, sizeof(buf), 900);
 
     // Visa exakt rå adaptertext utan tolkning/parsning.
     printRawAdapterResponse(buf, rxLen);
@@ -455,7 +472,7 @@ void UDS_read_test() {
     }
 
     uint8_t udsBytes[128];
-    size_t udsLen = collectIsoTpPayload(buf, udsBytes, sizeof(udsBytes), msg, sizeof(msg));
+    size_t udsLen = collectIsoTpPayload(buf, udsBytes, sizeof(udsBytes), msg, didReqLen);
     if (udsLen) {
       Serial.print("[UDS] RX PARSED ");
       for (size_t i = 0; i < udsLen; i++) {
@@ -480,4 +497,6 @@ void UDS_read_test() {
   if (!gotRaw) {
     Serial.println("[UDS] No raw UDS response after retries");
   }
+
+  return DIDanswer;
 }
