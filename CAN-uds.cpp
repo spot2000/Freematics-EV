@@ -226,6 +226,20 @@ static void printIndexedAdapterFrames(const char* text)
   }
 }
 
+static void printRawAdapterResponse(const char* text, int textLen)
+{
+  Serial.print("[UDS] RX RAW (len=");
+  Serial.print(textLen);
+  Serial.println("): ");
+
+  if (!text || !*text) {
+    Serial.println("[UDS] RX RAW <empty>");
+    return;
+  }
+
+  Serial.println(text);
+}
+
 static bool isExpectedUdsReply(const uint8_t* data, size_t len,
                                const uint8_t* req, size_t reqLen)
 {
@@ -288,16 +302,17 @@ bool read_UDS(uint32_t txCanId,
 
   auto sendAndTryParse = [&](const uint8_t* data, size_t len) -> bool {
     char sendBuf[1024];
+    memset(sendBuf, 0, sizeof(sendBuf));
     int sendResp = obd.sendCANMessage((byte*)data, (byte)len, sendBuf, (int)sizeof(sendBuf), 450);
-    if (sendResp <= 0) {
-      return false;
-    }
+
+    bool gotText = sendBuf[0] != '\0';
+    if (sendResp <= 0 && !gotText) return false;
 
     size_t parsed = collectIsoTpPayload(sendBuf, outRespBytes, outRespBytesMax, req, reqLen);
     if (parsed > 0) {
       *outRespLen = parsed;
     }
-    return true;
+    return sendResp > 0 || gotText;
   };
 
   bool sent = false;
@@ -343,11 +358,17 @@ void UDS_read_test() {
   bool gotRaw = false;
   for (int attempt = 0; attempt < 3 && !gotRaw; attempt++) {
     memset(buf, 0, sizeof(buf));
-    if (!obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf), 450)) continue;
+    int rxLen = obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf), 450);
 
     // Visa exakt rå adaptertext utan tolkning/parsning.
-    Serial.print("[UDS] RX RAW: ");
-    Serial.println(buf);
+    printRawAdapterResponse(buf, rxLen);
+    printIndexedAdapterFrames(buf);
+
+    if (rxLen <= 0 && !buf[0]) {
+      Serial.println("[UDS] RX timeout/no buffered data, retrying...");
+      delay(10);
+      continue;
+    }
 
     uint8_t udsBytes[128];
     size_t udsLen = collectIsoTpPayload(buf, udsBytes, sizeof(udsBytes), msg, sizeof(msg));
