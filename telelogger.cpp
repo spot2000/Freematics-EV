@@ -797,27 +797,44 @@ void process()
     // Undvik att blanda periodisk OBD-pollning (7DF/5xx) med UDS-test i samma loopvarv.
     // Det gör sniff-spåret renare och minskar risken att gamla svar ligger kvar i adapterns RX-buffer.
     if (runUdsTest) {
-      // Read from BMS
+
+      //Plats för att testa UDS-läsning av DIDs från BMS.
+      obd.setCANID(0x7E4);
+      obd.setHeaderMask(0x7FF);
+      obd.setHeaderFilter(0x7E8);
+      byte msg[] = {0x22, 0x01, 0x05}; // UDS Read DID 220105 (voltage, current, power)
+      char buf[128];
+      if (obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf))) {
+      // print the ECU response to the message
+      Serial.println("UDS answer are: ");
+      Serial.println(buf);
+      } else {
+        Serial.println("UDS read failed");
+      }
+
+
+
+      /*// Read from BMS
       // Read DID 220101
       String didAnswer = UDS_read_DID("7E4", "220101");
       Serial.print("[UDS] DID svar (sträng): ");
       Serial.println(didAnswer);
+
       // Read DID 220105
-      String didAnswer = UDS_read_DID("7E4", "220105");
+      didAnswer = UDS_read_DID("7E4", "220105");
       Serial.print("[UDS] DID svar (sträng): ");
       Serial.println(didAnswer);
+      
       // Read DID 220106
-      String didAnswer = UDS_read_DID("7E4", "220106");
+      didAnswer = UDS_read_DID("7E4", "220106");
       Serial.print("[UDS] DID svar (sträng): ");
       Serial.println(didAnswer);
       
       // Read from BMS
-      String didAnswer = UDS_read_DID("7E4", "220101");
+      didAnswer = UDS_read_DID("7E4", "220101");
       Serial.print("[UDS] DID svar (sträng): ");
       Serial.println(didAnswer);
-
-
-
+*/
 
 
 
@@ -825,7 +842,6 @@ void process()
     } else {
       processOBD(buffer);
     }
-
     if (obd.errors >= MAX_OBD_ERRORS) {
       Serial.println("[OBD] Re-init after errors");
       if (!obd.init(PROTO_ISO15765_11B_500K)) {
