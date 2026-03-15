@@ -435,8 +435,8 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
     int rxLen = obd.sendCANMessage(msg, didReqLen, buf, sizeof(buf), 900);
 
     // Visa exakt rå adaptertext utan tolkning/parsning.
-    //printRawAdapterResponse(buf, rxLen);
-    //printIndexedAdapterFrames(buf);
+    printRawAdapterResponse(buf, rxLen);
+    printIndexedAdapterFrames(buf);
 
     const char* pFrames = buf;
     while (*pFrames) {
