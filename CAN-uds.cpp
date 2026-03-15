@@ -394,40 +394,109 @@ bool read_UDS(uint32_t txCanId,
 
 String UDS_read_DID(const char* canIdHex, const char* didHex) {
   // TX/CAN-ID och DID kan skickas som hexsträngar, t.ex. "7E4" och "220101".
-  if (!canIdHex || !didHex) {
+  uint8_t didReq[32];
+  size_t didReqLen = hexStringToBytes(didHex, didReq, sizeof(didReq));
+  if (!canIdHex || !didReqLen) {
     return String();
   }
 
   uint32_t txCanId = (uint32_t)strtoul(canIdHex, nullptr, 16);
 
+  // Lyssna på ECU-svar från txCanId + 0x8 (normal 11-bit addressing).
+  obd.setCANID(txCanId);
+  obd.setHeaderMask(0xFFFFFF);
+  obd.setHeaderFilter(txCanId + 0x8);
+
+  byte msg[32];
+  memcpy(msg, didReq, didReqLen);
+  char buf[1024];
+  memset(buf, 0, sizeof(buf));
+
   Serial.print("[UDS] TX ");
   Serial.print(canIdHex);
   Serial.print(": ");
   Serial.print(didHex);
-  Serial.println();
+  Serial.print(" (filter ");
+  Serial.print(txCanId + 0x8, HEX);
+  Serial.println(")");
 
-  char respText[512];
-  uint8_t respBytes[256];
-  size_t respLen = 0;
+  bool gotRaw = false;
+  String DIDanswer = "62";
+  for (int attempt = 0; attempt < 3 && !gotRaw; attempt++) {
+    DIDanswer = "62";
+    memset(buf, 0, sizeof(buf));
+    int rxLen = obd.sendCANMessage(msg, didReqLen, buf, sizeof(buf), 900);
 
-  if (!read_UDS(txCanId,
-                didHex,
-                respText, sizeof(respText),
-                respBytes, sizeof(respBytes),
-                &respLen)) {
-    Serial.println("[UDS] No UDS response");
-    return String();
-  }
+    // Visa exakt rå adaptertext utan tolkning/parsning.
+    //printRawAdapterResponse(buf, rxLen);
+    //printIndexedAdapterFrames(buf);
 
-  if (respLen) {
-    Serial.print("[UDS] RX PARSED ");
-    for (size_t i = 0; i < respLen; i++) {
-      if (i) Serial.print(' ');
-      if (respBytes[i] < 16) Serial.print('0');
-      Serial.print(respBytes[i], HEX);
+    const char* pFrames = buf;
+    while (*pFrames) {
+      while (*pFrames == '\r' || *pFrames == '\n') pFrames++;
+      if (!*pFrames) break;
+
+      const char* lineStart = pFrames;
+      while (*pFrames && *pFrames != '\r' && *pFrames != '\n') pFrames++;
+      const char* lineEnd = pFrames;
+
+      while (lineStart < lineEnd && (*lineStart == ' ' || *lineStart == '\t')) lineStart++;
+      while (lineEnd > lineStart && (lineEnd[-1] == ' ' || lineEnd[-1] == '\t')) lineEnd--;
+      if (lineEnd <= lineStart) continue;
+
+      size_t lineLen = (size_t)(lineEnd - lineStart);
+      if (lineLen >= 127) continue;
+
+      char line[128];
+      memcpy(line, lineStart, lineLen);
+      line[lineLen] = '\0';
+
+      uint8_t frame[64];
+      size_t frameLen = parseAdapterLinePayload(line, frame, sizeof(frame));
+      if (!frameLen) continue;
+
+      for (size_t i = 0; i < frameLen; i++) {
+        char hex[3];
+        snprintf(hex, sizeof(hex), "%02X", frame[i]);
+        DIDanswer += hex;
+      }
     }
-    Serial.println();
+
+    //Serial.print("DID svar är: ");
+    //Serial.println(DIDanswer);
+
+    if (rxLen <= 0 && !buf[0]) {
+      Serial.println("[UDS] RX timeout/no buffered data, retrying...");
+      delay(30);
+      continue;
+    }
+
+    uint8_t udsBytes[128];
+    size_t udsLen = collectIsoTpPayload(buf, udsBytes, sizeof(udsBytes), msg, didReqLen);
+    if (udsLen) {
+      Serial.print("[UDS] RX PARSED ");
+      for (size_t i = 0; i < udsLen; i++) {
+        if (i) Serial.print(' ');
+        if (udsBytes[i] < 16) Serial.print('0');
+        Serial.print(udsBytes[i], HEX);
+      }
+      Serial.println();
+    }
+
+    // Markera lyckat om vi fick någon faktisk text tillbaka (inte bara tomrad/OK-echo).
+    const char* p = buf;
+    while (*p == ' ' || *p == '\r' || *p == '\n') p++;
+    if (*p && strcmp(p, "OK") != 0) {
+      gotRaw = true;
+    } else {
+      Serial.println("[UDS] RX only adapter echo/empty, retrying...");
+      delay(30);
+    }
   }
 
-  return String(respText);
+  if (!gotRaw) {
+    Serial.println("[UDS] No raw UDS response after retries");
+  }
+
+  return DIDanswer;
 }

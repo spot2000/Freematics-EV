@@ -293,12 +293,6 @@ int handlerLiveData(UrlHandlerParam* param)
  */
 void processOBD(CBuffer* buffer)
 {
-  // OBD-II Service 01 polling is intentionally disabled to avoid triggering 01xx traffic.
-  // (Previously this function called obd.readPID(...), which sends Mode 01 requests.)
-  (void)buffer;
-  return;
-
-  /*
   static int idx[2] = {0, 0};
   int tier = 1;
   for (byte i = 0; i < sizeof(obdData) / sizeof(obdData[0]); i++) {
@@ -332,7 +326,6 @@ void processOBD(CBuffer* buffer)
   }
   int kph = obdData[0].value;
   if (kph >= 2) lastMotionTime = millis();
-  */
 }
 #endif
 
@@ -804,51 +797,23 @@ void process()
     // Undvik att blanda periodisk OBD-pollning (7DF/5xx) med UDS-test i samma loopvarv.
     // Det gör sniff-spåret renare och minskar risken att gamla svar ligger kvar i adapterns RX-buffer.
     if (runUdsTest) {
-      // Read from BMS (7E4)
+      // Read from BMS
       // Read DID 220101
       String didAnswer = UDS_read_DID("7E4", "220101");
-      Serial.print("[UDS] DID svar BMS (0x7E4, 220101): ");
+      Serial.print("[UDS] DID svar (sträng): ");
       Serial.println(didAnswer);
-      delay(500);
-
       // Read DID 220105
-      didAnswer = UDS_read_DID("7E4", "220105");
-      Serial.print("[UDS] DID svar BMS (0x7E4, 220105): ");
+      String didAnswer = UDS_read_DID("7E4", "220105");
+      Serial.print("[UDS] DID svar (sträng): ");
       Serial.println(didAnswer);
-      delay(500);
-
-      // Read from VCMS (744)
-      // Read DID 22E001
-      didAnswer = UDS_read_DID("744", "22E001");
-      Serial.print("[UDS] DID svar VCMS (0x744, 22E001): ");
+      // Read DID 220106
+      String didAnswer = UDS_read_DID("7E4", "220106");
+      Serial.print("[UDS] DID svar (sträng): ");
       Serial.println(didAnswer);
-      delay(1000);
-
-      // Read from BDC-TPMS (7A0)
-      // Read DID 22C000
-      didAnswer = UDS_read_DID("7A0", "22C000");
-      Serial.print("[UDS] DID svar BDC-TPMS (0x7A0, 22C000): ");
-      Serial.println(didAnswer);
-      delay(500);
-
-      // Read from AIRCON (7B3)
-      // Read DID 220100
-      didAnswer = UDS_read_DID("7B3", "220100");
-      Serial.print("[UDS] DID svar AIRCON (0x7B3, 220100): ");
-      Serial.println(didAnswer);
-      delay(500);
-
-      // Read from CLUSTER (7C6)
-      // Read DID 22B002
-      didAnswer = UDS_read_DID("7C6", "22B002");
-      Serial.print("[UDS] DID svar CLUSTER (0x7C6, 22B002): ");
-      Serial.println(didAnswer);
-      delay(500);
-
-      // Read from VCU (7E2)
-      // Read DID 22E004
-      didAnswer = UDS_read_DID("7E2", "22E004");
-      Serial.print("[UDS] DID svar VCU (0x7E2, 22E004): ");
+      
+      // Read from BMS
+      String didAnswer = UDS_read_DID("7E4", "220101");
+      Serial.print("[UDS] DID svar (sträng): ");
       Serial.println(didAnswer);
 
 
@@ -1651,9 +1616,12 @@ void processBLE(int timeout)
       }
     }
     if (pid) {
-      // OBD-II Service 01 direct reads are intentionally disabled.
-      // (Previously this branch called obd.readPID(pid, value), which triggers 01xx.)
-      n += snprintf(buf + n, bufsize - n, "N/A");
+      int value;
+      if (obd.readPID(pid, value)) {
+        n += snprintf(buf + n, bufsize - n, "%d", value);
+      } else {
+        n += snprintf(buf + n, bufsize - n, "N/A");
+      }
     }
   } else if (!strcmp(cmd, "VIN")) {
     n += snprintf(buf + n, bufsize - n, "%s", vin[0] ? vin : "N/A");
