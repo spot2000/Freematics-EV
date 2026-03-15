@@ -176,6 +176,15 @@ static size_t collectIsoTpPayload(const char* text,
     size_t frameLen = parseAdapterLinePayload(line, frame, sizeof(frame));
     if (!frameLen) continue;
 
+    // Vissa adaptrar returnerar redan ren UDS payload utan ISO-TP PCI-byte.
+    // Exempel: "62 01 05 ..." istället för "06 62 01 05 ...".
+    if (isExpectedUdsReply(frame, frameLen, req, reqLen)) {
+      size_t outLen = frameLen;
+      if (outLen > outMax) outLen = outMax;
+      memcpy(out, frame, outLen);
+      return outLen;
+    }
+
     uint8_t pciType = frame[0] >> 4;
 
     if (pciType == 0x0) {
@@ -300,6 +309,11 @@ bool read_UDS(uint32_t txCanId,
     char sendBuf[1024];
     memset(sendBuf, 0, sizeof(sendBuf));
     int sendResp = obd.sendCANMessage((byte*)data, (byte)len, sendBuf, (int)sizeof(sendBuf), 900);
+
+    if (sendBuf[0]) {
+      strncpy(outRespTxt, sendBuf, outRespTxtSize - 1);
+      outRespTxt[outRespTxtSize - 1] = '\0';
+    }
 
     bool gotText = sendBuf[0] != '\0';
     if (sendResp <= 0 && !gotText) return false;
