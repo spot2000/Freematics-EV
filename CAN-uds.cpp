@@ -500,3 +500,63 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
 
   return DIDanswer;
 }
+
+// function to convert CAN answer to stndardised string
+bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSize)
+{
+  if (!buf || !outPayload || outPayloadSize == 0) {
+    return false;
+  }
+
+  size_t j = 0;
+  bool afterColon = false;
+  bool skippedLengthPrefix = false;
+
+  for (size_t i = 0; buf[i] != '\0'; i++) {
+    char c = buf[i];
+
+    // Hoppa över inledande längdfält, t.ex. "02E "
+    if (!skippedLengthPrefix) {
+      if (c == ' ') {
+        skippedLengthPrefix = true;
+      }
+      continue;
+    }
+
+    // När vi hittar ":" börjar datadelen på raden efter detta
+    if (c == ':') {
+      afterColon = true;
+      continue;
+    }
+
+    // Radslut återställer så att nästa radnummer ignoreras tills nästa ':'
+    if (c == '\r' || c == '\n') {
+      afterColon = false;
+      continue;
+    }
+
+    // Innan ":" ignorerar vi radnummer, t.ex. "0", "1", "2"
+    if (!afterColon) {
+      continue;
+    }
+
+    // Ta bara hextecken ur själva datadelen, hoppa över mellanslag
+    bool isHex =
+      (c >= '0' && c <= '9') ||
+      (c >= 'A' && c <= 'F') ||
+      (c >= 'a' && c <= 'f');
+
+    if (isHex) {
+      if (j >= outPayloadSize - 1) {
+        outPayload[0] = '\0';
+        return false; // outputbuffer för liten
+      }
+      // Normalisera till versaler
+      if (c >= 'a' && c <= 'f') c = c - 'a' + 'A';
+      outPayload[j++] = c;
+    }
+  }
+
+  outPayload[j] = '\0';
+  return (j > 0);
+}

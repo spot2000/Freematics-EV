@@ -88,7 +88,8 @@
 // cellular network settings
 #define CELL_APN ""
 // Freematics Hub server settings
-#define SERVER_HOST "hub.freematics.com"
+//#define SERVER_HOST "traccar.secc.se"
+#define SERVER_HOST "demo3.traccar.org"
 #define SERVER_PROTOCOL PROTOCOL_UDP
 #endif
 
@@ -103,7 +104,7 @@
 #if !SERVER_PORT
 #undef SERVER_PORT
 #if SERVER_PROTOCOL == PROTOCOL_UDP
-#define SERVER_PORT 8081
+#define SERVER_PORT 5170
 #else
 #define SERVER_PORT 443
 #endif
