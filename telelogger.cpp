@@ -293,8 +293,8 @@ int handlerLiveData(UrlHandlerParam* param)
  */
 void processOBD(CBuffer* buffer)
 {
-  // OBD-II Service 01 polling is intentionally disabled to avoid triggering 01xx traffic.
-  // (Previously this function called obd.readPID(...), which sends Mode 01 requests.)
+  // 2026-03-15: OBD-II Service 01 polling är bortkommenterad för att undvika 01xx-trafik.
+  // Varför: den tidigare implementationen kallade obd.readPID(...), vilket skickar Mode 01-frågor.
   (void)buffer;
   return;
 
@@ -622,22 +622,11 @@ void initialize()
 #endif
 
 #if ENABLE_OBD
-  // initialize OBD communication
-  if (!state.check(STATE_OBD_READY)) {
-    timeoutsOBD = 0;
-    Serial.println("[OBD] Init: PROTO_ISO15765_11B_500K");
-    if (obd.init(PROTO_ISO15765_11B_500K)) {
-      Serial.println("OBD:OK");
-      state.set(STATE_OBD_READY);
-#if ENABLE_OLED
-      oled.println("OBD OK");
-#endif
-    } else {
-      Serial.println("OBD:NO");
-      //state.clear(STATE_WORKING);
-      //return;
-    }
-  }
+  // 2026-03-15: OBD-II init är bortkommenterad för att säkerställa att inga OBD-II frågor skickas.
+  // Varför: obd.init(...) kan trigga OBD-II trafik (t.ex. init/handshake/PID-relaterad probing).
+  // UDS-funktionerna ska vara kvar och körs via rå CAN i process().
+  timeoutsOBD = 0;
+  Serial.println("[OBD] OBD-II init disabled (UDS only)");
 #endif
 
 #if STORAGE != STORAGE_NONE
@@ -652,21 +641,11 @@ void initialize()
   }
 #endif
 
-  // re-try OBD if connection not established
+  // 2026-03-15: VIN/DTC-läsning är bortkommenterad för att undvika OBD-II frågor (Service 03/09).
+  // UDS-kod ska inte påverkas av detta.
 #if ENABLE_OBD
-  if (state.check(STATE_OBD_READY)) {
-    char buf[128];
-    if (obd.getVIN(buf, sizeof(buf))) {
-      memcpy(vin, buf, sizeof(vin) - 1);
-      Serial.print("VIN:");
-      Serial.println(vin);
-    }
-    int dtcCount = obd.readDTC(dtc, sizeof(dtc) / sizeof(dtc[0]));
-    if (dtcCount > 0) {
-      Serial.print("DTC:");
-      Serial.println(dtcCount);
-    }
-#if ENABLE_OLED
+  if (false) {
+    #if ENABLE_OLED
     oled.print("VIN:");
     oled.println(vin);
 #endif
@@ -797,8 +776,9 @@ void process()
   buffer->state = BUFFER_STATE_FILLING;
 
 #if ENABLE_OBD
-  // process OBD data if connected
-  if (state.check(STATE_OBD_READY)) {
+  // 2026-03-15: OBD-II gate/re-init är bortkommenterad; vi kör endast UDS över CAN här.
+  // Varför: state.check(STATE_OBD_READY) + obd.init(...) är kopplat till OBD-II-flöden.
+  {
     bool runUdsTest = (millis() - lastUdsRead >= udsIntervalMs);
 
     // Undvik att blanda periodisk OBD-pollning (7DF/5xx) med UDS-test i samma loopvarv.
@@ -855,19 +835,8 @@ void process()
       processOBD(buffer);
     }
 
-    if (obd.errors >= MAX_OBD_ERRORS) {
-      Serial.println("[OBD] Re-init after errors");
-      if (!obd.init(PROTO_ISO15765_11B_500K)) {
-        Serial.println("[OBD] ECU OFF");
-        state.clear(STATE_OBD_READY | STATE_WORKING);
-        return;
-      }
-    }
-  } else if (obd.init(PROTO_ISO15765_11B_500K, true)) {
-    state.set(STATE_OBD_READY);
-    Serial.println("[OBD] ECU ON");
-  } else {
-    Serial.println("[OBD] Init (fast) failed");
+    // 2026-03-15: OBD-II felhantering/re-init bortkommenterad för att undvika nya OBD-II initförsök.
+    // UDS-förfrågningar fortsätter skickas i runUdsTest-blocket ovan.
   }
 #endif
 
@@ -1645,8 +1614,8 @@ void processBLE(int timeout)
       }
     }
     if (pid) {
-      // OBD-II Service 01 direct reads are intentionally disabled.
-      // (Previously this branch called obd.readPID(pid, value), which triggers 01xx.)
+      // 2026-03-15: OBD-II Service 01 direktläsning är bortkommenterad.
+      // Varför: denna gren kallade tidigare obd.readPID(pid, value) och skickade 01xx-frågor.
       n += snprintf(buf + n, bufsize - n, "N/A");
     }
   } else if (!strcmp(cmd, "VIN")) {
