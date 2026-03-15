@@ -326,8 +326,11 @@ bool read_UDS(uint32_t txCanId,
   };
 
   bool sent = false;
+  // Undvik att spamma samma DID-fråga flera gånger i rad.
+  // Vi försöker om endast när vi inte får någon text alls tillbaka.
   for (int attempt = 0; attempt < 3 && !*outRespLen; attempt++) {
     sent = sendAndTryParse(req, reqLen) || sent;
+    if (outRespTxt[0]) break;
     if (!*outRespLen) delay(30);
   }
 
@@ -373,8 +376,9 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
 
   // Lyssna på ECU-svar från txCanId + 0x8 (normal 11-bit addressing).
   obd.setCANID(txCanId);
-  obd.setHeaderMask(0xFFFFFF);
-  obd.setHeaderFilter(txCanId + 0x8);
+  // 11-bit CAN: använd 0x7FF-mask så filtret säkert matchar ECU-svar.
+  obd.setHeaderMask(0x7FF);
+  obd.setHeaderFilter((txCanId + 0x8) & 0x7FF);
 
   char respTxt[1024];
   uint8_t respBytes[256];
