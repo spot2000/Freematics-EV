@@ -187,7 +187,7 @@
 
 // enable(1)/disable(0) BLE SPP server (for Freematics Controller App).
 #ifndef ENABLE_BLE
-#define ENABLE_BLE 1
+#define ENABLE_BLE 0
 #endif
 
 
