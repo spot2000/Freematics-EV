@@ -293,6 +293,12 @@ int handlerLiveData(UrlHandlerParam* param)
  */
 void processOBD(CBuffer* buffer)
 {
+  // OBD-II Service 01 polling is intentionally disabled to avoid triggering 01xx traffic.
+  // (Previously this function called obd.readPID(...), which sends Mode 01 requests.)
+  (void)buffer;
+  return;
+
+  /*
   static int idx[2] = {0, 0};
   int tier = 1;
   for (byte i = 0; i < sizeof(obdData) / sizeof(obdData[0]); i++) {
@@ -326,6 +332,7 @@ void processOBD(CBuffer* buffer)
   }
   int kph = obdData[0].value;
   if (kph >= 2) lastMotionTime = millis();
+  */
 }
 #endif
 
@@ -1638,12 +1645,9 @@ void processBLE(int timeout)
       }
     }
     if (pid) {
-      int value;
-      if (obd.readPID(pid, value)) {
-        n += snprintf(buf + n, bufsize - n, "%d", value);
-      } else {
-        n += snprintf(buf + n, bufsize - n, "N/A");
-      }
+      // OBD-II Service 01 direct reads are intentionally disabled.
+      // (Previously this branch called obd.readPID(pid, value), which triggers 01xx.)
+      n += snprintf(buf + n, bufsize - n, "N/A");
     }
   } else if (!strcmp(cmd, "VIN")) {
     n += snprintf(buf + n, bufsize - n, "%s", vin[0] ? vin : "N/A");
