@@ -404,7 +404,8 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
 
   // Lyssna på ECU-svar från txCanId + 0x8 (normal 11-bit addressing).
   obd.setCANID(txCanId);
-  obd.setHeaderMask(0xFFFFFF);
+  //obd.setHeaderMask(0xFFFFFF);
+  //obd.setHeaderMask(0x7FF);
   obd.setHeaderFilter(txCanId + 0x8);
 
   byte msg[32];
