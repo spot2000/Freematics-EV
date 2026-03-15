@@ -802,6 +802,7 @@ void process()
       String didAnswer = UDS_read_DID("7E4", "220101");
       Serial.print("[UDS] DID svar BMS (0x7E4, 220101): ");
       Serial.println(didAnswer);
+      /*
       // Read DID 220105
       didAnswer = UDS_read_DID("7E4", "220105");
       Serial.print("[UDS] DID svar BMS (0x7E4, 220105): ");
@@ -836,7 +837,7 @@ void process()
       didAnswer = UDS_read_DID("7E2", "22E004");
       Serial.print("[UDS] DID svar VCU (0x7E2, 22E004): ");
       Serial.println(didAnswer);
-
+*/
 
 
 
