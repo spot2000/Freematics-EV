@@ -887,7 +887,6 @@ obd.setCANID(0x7E4);
 obd.setHeaderMask(0x7FF);
 obd.setHeaderFilter(0x7EC);
 
-byte msg[] = {0x22, 0x01, 0x05};
 char buf[2000];
 char payload[512];
 

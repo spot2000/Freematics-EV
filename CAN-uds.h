@@ -11,5 +11,6 @@ bool read_UDS(uint32_t txCanId,
               uint8_t* outRespBytes, size_t outRespBytesMax, size_t* outRespLen);
 
 String UDS_read_DID(const char* canIdHex, const char* didHex);
+bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSize);
 
 #endif  // CAN_UDS_H
