@@ -768,19 +768,44 @@ void process()
     if (runUdsTest) {
       String DID_reply;
 
+      // UDS DID read #1: Försök läsa DID 0x220101 från BMS och logga svaret.
       //Plats för att testa UDS-läsning av DIDs från BMS.
       if (readUDS_DID(0x7E4, 0x220101, DID_reply)) {
         serial_log_print(LOG_INFO, "UDS raw response:");
         serial_log_print(LOG_INFO, DID_reply);
       }
-      //readUDS_DID(0x7E4, 0x220105);
-      //readUDS_DID(0x7E4, 0x220101);
-      //readUDS_DID(0x7E4, 0x220101);
-      //readUDS_DID(0x7E4, 0x220101);
-      //readUDS_DID(0x7E4, 0x220101);
-      //readUDS_DID(0x7E4, 0x220101);
-      //readUDS_DID(0x7E4, 0x220101);
-      //readUDS_DID(0x7E4, 0x220101);
+      // UDS DID read #2: Försök läsa DID 0x220105 från BMS och logga svaret.
+      if (readUDS_DID(0x7E4, 0x220105, DID_reply)) {
+        serial_log_print(LOG_INFO, "UDS raw response:");
+        serial_log_print(LOG_INFO, DID_reply);
+      }
+      // UDS DID read #3: Försök läsa DID 0x22E001 från VCMS och logga svaret.
+      if (readUDS_DID(0x744, 0x22E001, DID_reply)) {
+        serial_log_print(LOG_INFO, "UDS raw response:");
+        serial_log_print(LOG_INFO, DID_reply);
+      }
+      // UDS DID read #4: Försök läsa DID 0x22C000 från BDC-TPMS och logga svaret.
+      if (readUDS_DID(0x7A0, 0x22C000, DID_reply)) {
+        serial_log_print(LOG_INFO, "UDS raw response:");
+        serial_log_print(LOG_INFO, DID_reply);
+      }
+      // UDS DID read #5: Försök läsa DID 0x220100 från AIRCON och logga svaret.
+      if (readUDS_DID(0x7B3, 0x220100, DID_reply)) {
+        serial_log_print(LOG_INFO, "UDS raw response:");
+        serial_log_print(LOG_INFO, DID_reply);
+      }
+      // UDS DID read #6: Försök läsa DID 0x22B002 från CLUSTER och logga svaret.
+      if (readUDS_DID(0x7C6, 0x22B002, DID_reply)) {
+        serial_log_print(LOG_INFO, "UDS raw response:");
+        serial_log_print(LOG_INFO, DID_reply);
+      }
+      // UDS DID read #7: Försök läsa DID 0x22E004 från VCU och logga svaret.
+      if (readUDS_DID(0x7E2, 0x22E004, DID_reply)) {
+        serial_log_print(LOG_INFO, "UDS raw response:");
+        serial_log_print(LOG_INFO, DID_reply);
+      }
+      
+
 
            
       
