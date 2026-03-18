@@ -185,7 +185,7 @@
 * Logging
 **************************************/
 #define ACTIVE_LOGS 1 /* 1 = show logs, 0 = disable serial_log_print output */
-#define LOG_LEVEL LOG_INFO
+#define LOG_LEVEL LOG_INFO /* log level: LOG_ERROR, LOG_WARNING, LOG_INFO, LOG_DEBUG */
 
 // enable(1)/disable(0) http server
 #ifndef ENABLE_HTTPD
