@@ -27,6 +27,7 @@
 #include <FS.h>
 #include <SD.h>
 #include <SPIFFS.h>
+#include "serial_logging.h"
 #include <FreematicsPlus.h>
 #include <WiFi.h>
 #include <SPIFFS.h>
@@ -245,10 +246,7 @@ int handlerLogList(UrlHandlerParam* param)
             if (!strncmp(fn, "/DATA/", 6)) {
                 fn += 6;
                 unsigned int size = file.size();
-                Serial.print(fn);
-                Serial.print(' ');
-                Serial.print(size);
-                Serial.println(" bytes");
+                serial_log_printf(INFO, "%s %u bytes", fn, size);
                 unsigned int id = atoi(fn);
                 if (id) {
                     n += snprintf(buf + n, bufsize - n, "{\"id\":%u,\"size\":%u",

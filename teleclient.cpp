@@ -15,6 +15,7 @@
 * THE SOFTWARE.
 ******************************************************************************/
 
+#include "serial_logging.h"
 #include <FreematicsPlus.h>
 #include "telestore.h"
 #include "teleclient.h"
@@ -42,7 +43,7 @@ void CBuffer::add(uint16_t pid, uint8_t type, void* values, int bytes, uint8_t c
     offset += bytes;
     total++;
   } else {
-    Serial.println("FULL");
+    serial_log_print(INFO, "FULL");
   }
 }
 
@@ -111,7 +112,7 @@ void CBufferManager::init()
     mem = malloc(BUFFER_LENGTH);
 #endif
     if (!mem) {
-      Serial.println("OUT OF RAM");
+      serial_log_print(INFO, "OUT OF RAM");
       total = n;
       break;
     }
@@ -201,14 +202,7 @@ void CBufferManager::printStats()
     count++;
   }
   if (slots) {
-    Serial.print("[BUF] ");
-    Serial.print(samples);
-    Serial.print(" samples | ");
-    Serial.print(bytes);
-    Serial.print(" bytes | ");
-    Serial.print(count);
-    Serial.print('/');
-    Serial.println(total);
+    serial_log_printf(INFO, "[BUF] %d samples | %d bytes | %d/%lu", samples, bytes, count, (unsigned long)total);
   }
 }
 
@@ -245,7 +239,7 @@ bool TeleClientUDP::notify(byte event, const char* payload)
     netbuf.dispatch(payload, strlen(payload));
   }
   netbuf.tailer();
-  //Serial.println(netbuf.buffer());
+  //serial_log_print(INFO, netbuf.buffer());
   for (byte attempts = 0; attempts < 3; attempts++) {
     // send notification datagram
 #if ENABLE_WIFI
@@ -277,21 +271,19 @@ bool TeleClientUDP::notify(byte event, const char* payload)
       data = cell.receive(&bytesRecv); 
     }
     if (!data || bytesRecv == 0) {
-      Serial.println("[UDP] Timeout");
+      serial_log_print(INFO, "[UDP] Timeout");
       continue;
     }
     rxBytes += bytesRecv;
     // verify checksum
     if (!verifyChecksum(data)) {
-      Serial.print("[UDP] Checksum mismatch:");
-      Serial.println(data);
+      serial_log_printf(INFO, "[UDP] Checksum mismatch:%s", data);
       continue;
     }
     char pattern[16];
     sprintf(pattern, "EV=%u", event);
     if (!strstr(data, pattern)) {
-      Serial.print("[UDP] Invalid reply: ");
-      Serial.println(data);
+      serial_log_printf(INFO, "[UDP] Invalid reply: %s", data);
       continue;
     }
     if (event == EVENT_LOGIN) {
@@ -341,16 +333,12 @@ bool TeleClientUDP::connect(bool quick)
 
   // connect to telematics server
   for (byte attempts = 0; attempts < 3; attempts++) {
-    Serial.print(event == EVENT_LOGIN ? "LOGIN(" : "RECONNECT(");
-    Serial.print(SERVER_HOST);
-    Serial.print(':');
-    Serial.print(SERVER_PORT);
-    Serial.println(")...");
+    serial_log_printf(INFO, "%s%s:%d)...", event == EVENT_LOGIN ? "LOGIN(" : "RECONNECT(", SERVER_HOST, SERVER_PORT);
 #if ENABLE_WIFI
     if (wifi.connected())
     {
       if (!wifi.open(SERVER_HOST, SERVER_PORT)) {
-        Serial.println("[WIFI] Unable to connect");
+        serial_log_print(INFO, "[WIFI] Unable to connect");
         delay(1000);
         continue;
       }
@@ -360,7 +348,7 @@ bool TeleClientUDP::connect(bool quick)
     {
       if (!cell.open(SERVER_HOST, SERVER_PORT)) {
         if (!cell.check()) break;
-        Serial.println("[NET] Unable to connect");
+        serial_log_print(INFO, "[NET] Unable to connect");
         delay(3000);
         continue;
       }
@@ -378,7 +366,7 @@ bool TeleClientUDP::connect(bool quick)
         if (!cell.check()) break;
         cell.close();
       }
-      Serial.println("[NET] Server timeout");
+      serial_log_print(INFO, "[NET] Server timeout");
       continue;
     }
     success = true;
@@ -432,9 +420,7 @@ bool TeleClientUDP::transmit(const char* packetBuffer, unsigned int packetSize)
     if (wifi.send(packetBuffer, packetSize)) {
       txBytes += packetSize;
       txCount++;
-      Serial.print("[WIFI] ");
-      Serial.print(packetSize);
-      Serial.println(" bytes sent");
+      serial_log_printf(INFO, "[WIFI] %u bytes sent", packetSize);
       return true;  
     }
     return false;
@@ -447,9 +433,7 @@ bool TeleClientUDP::transmit(const char* packetBuffer, unsigned int packetSize)
     cell.open(0, 0);
     packets = 0;
   }
-  Serial.print("[CELL] ");
-  Serial.print(packetSize);
-  Serial.println(" bytes being sent");
+  serial_log_printf(INFO, "[CELL] %u bytes being sent", packetSize);
   if (cell.send(packetBuffer, packetSize)) {
     txBytes += packetSize;
     txCount++;
@@ -477,12 +461,10 @@ void TeleClientUDP::inbound()
     }
     if (!data || len == 0) break;
     data[len] = 0;
-    Serial.print("[UDP] ");
-    Serial.println(data);
+    serial_log_printf(INFO, "[UDP] %s", data);
     rxBytes += len;
     if (!verifyChecksum(data)) {
-      Serial.print("[UDP] Checksum mismatch:");
-      Serial.println(data);
+      serial_log_printf(INFO, "[UDP] Checksum mismatch:%s", data);
       break;
     }
     char *p = strstr(data, "EV=");
@@ -491,8 +473,7 @@ void TeleClientUDP::inbound()
     switch (eventID) {
     case EVENT_SYNC:
         feedid = hex2uint16(data);
-        Serial.print("[UDP] FEED ID:");
-        Serial.println(feedid);
+        serial_log_printf(INFO, "[UDP] FEED ID:%u", feedid);
         break;
     }
     lastSyncTime = millis();
@@ -504,17 +485,17 @@ void TeleClientUDP::shutdown()
   if (login) {
     notify(EVENT_LOGOUT);
     login = false;
-    Serial.println("[NET] Logout");
+    serial_log_print(INFO, "[NET] Logout");
   }
 #if ENABLE_WIFI
   if (wifi.connected()) {
     wifi.end();
-    Serial.println("[WIFI] Deactivated");
+    serial_log_print(INFO, "[WIFI] Deactivated");
     return;
   }
 #endif
   cell.end();
-  Serial.println("[CELL] Deactivated");
+  serial_log_print(INFO, "[CELL] Deactivated");
 }
 
 bool TeleClientHTTP::notify(byte event, const char* payload)
@@ -564,21 +545,19 @@ bool TeleClientHTTP::transmit(const char* packetBuffer, unsigned int packetSize)
   len = snprintf(path, sizeof(path), "%s/post/%s", SERVER_PATH, devid);
 #if ENABLE_WIFI
   if (wifi.connected()) {
-    Serial.print("[WIFI] ");
-    Serial.println(path);
+    serial_log_printf(INFO, "[WIFI] %s", path);
     success = wifi.send(METHOD_POST, path, packetBuffer, packetSize);
   }
   else
 #endif
   {
-    Serial.print("[CELL] ");
-    Serial.println(path);
+    serial_log_printf(INFO, "[CELL] %s", path);
     success = cell.send(METHOD_POST, SERVER_HOST, SERVER_PORT, path, packetBuffer, packetSize);
   }
   len += packetSize;
 #endif
   if (!success) {
-    Serial.println("[HTTP] Connection closed");
+    serial_log_print(INFO, "[HTTP] Connection closed");
     return false;
   } else {
     txBytes += len;
@@ -600,11 +579,10 @@ bool TeleClientHTTP::transmit(const char* packetBuffer, unsigned int packetSize)
   }
   if (!content) {
     // close connection on receiving timeout
-    Serial.println("[HTTP] No response");
+    serial_log_print(INFO, "[HTTP] No response");
     return false;
   }
-  Serial.print("[HTTP] ");
-  Serial.println(content);
+  serial_log_printf(INFO, "[HTTP] %s", content);
 #if ENABLE_WIFI
   if ((wifi.connected() && wifi.code() == 200) || cell.code() == 200) {
 #else
@@ -650,16 +628,12 @@ bool TeleClientHTTP::connect(bool quick)
     }
   }
   if (!success) {
-    Serial.println("[CELL] Unable to connect");
+    serial_log_print(INFO, "[CELL] Unable to connect");
     return false;
   }
   if (quick) return true;
   if (!login) {
-    Serial.print("LOGIN(");
-    Serial.print(SERVER_HOST);
-    Serial.print(':');
-    Serial.print(SERVER_PORT);
-    Serial.println(")...");
+    serial_log_printf(INFO, "LOGIN(%s:%d)...", SERVER_HOST, SERVER_PORT);
     // log in or reconnect to Freematics Hub
     if (notify(EVENT_LOGIN)) {
       lastSyncTime = millis();
@@ -679,16 +653,16 @@ void TeleClientHTTP::shutdown()
   if (login) {
     notify(EVENT_LOGOUT);
     login = false;
-    Serial.println("[NET] Logout");
+    serial_log_print(INFO, "[NET] Logout");
   }
 #if ENABLE_WIFI
   if (wifi.connected()) {
     wifi.end();
-    Serial.println("[WIFI] Deactivated");
+    serial_log_print(INFO, "[WIFI] Deactivated");
     return;
   }
 #endif
   cell.close();
   cell.end();
-  Serial.println("[CELL] Deactivated");
+  serial_log_print(INFO, "[CELL] Deactivated");
 }
