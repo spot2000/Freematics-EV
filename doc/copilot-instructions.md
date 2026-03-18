@@ -20,7 +20,7 @@ This is a vehicle telemetry system running on Freematics ONE+ Model B (ESP32-bas
 ### Key Design Patterns
 - **Lazy initialization**: Sensors initialized only if available (MEMS tries ICM-42627 → ICM-20948, `telelogger.cpp` lines 1392-1418)
 - **Task-based multitasking**: Main loop handles data collection; background task handles networking (prevents blocking)
-- **Configuration hierarchy**: Environment variables (menuconfig) → config.h macros → runtime NVS (config.xml on SD card)
+- **Configuration hierarchy**: `config.h` compile-time macros → persisted NVS values for APN/Wi-Fi → optional SD card INI overrides from `/cfg/wifi.ini` and `/cfg/abrp.ini`.
 
 ## Critical Build & Workflow Commands
 
@@ -35,7 +35,7 @@ See `platformio.ini`: Board `esp-wrover-kit`, CPU 160MHz, monitor 115200 baud. P
 
 ### Configuration
 - **Compile-time**: Edit `config.h` macros (ENABLE_OBD, ENABLE_WIFI, ENABLE_MEMS, etc.)
-- **Runtime**: SD card `config.cfg` file (parsed in `loadConfig()`)
+- **Runtime**: `loadConfig()` reads persisted APN and Wi-Fi values from NVS; `loadSdIniOverrides()` optionally applies `/cfg/wifi.ini` and `/cfg/abrp.ini` from the SD card.
 - **Persistent**: NVS flash storage for WiFi SSID/password, APN
 
 ### Debugging
@@ -64,7 +64,7 @@ States in `teleclient.h` lines 11-14: EMPTY → FILLING → FILLED → LOCKED. C
 - **Header guards**: `#ifndef CLASS_HEADER_INCLUDED`
 - **Config section**: All feature flags in `config.h` (lines 1-50)
 - **Library paths**: `libraries/` includes FreematicsPlus and httpd utility libraries
-- **External config**: `config.xml` on SD card overrides compiled defaults
+- **External config**: optional SD card INI files in `/cfg/` provide Wi-Fi and ABRP overrides without rebuilding the firmware.
 
 ## Common Modifications
 - **Add new sensor**: Create handler in telelogger.cpp `process()`, add struct to buffer, include in ABRP data if applicable
