@@ -573,7 +573,7 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
 {
   outResponse = "";
 
-  uint8_t msg[4];
+  uint8_t msg[4]; //the reply from DID call
   size_t msgLen = 0;
 
   for (int shift = 24; shift >= 0; shift -= 8) {
@@ -591,11 +591,13 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
 
   obd.setCANID((uint16_t)canId);
   obd.setHeaderMask(0x7FF);
-  obd.setHeaderFilter(canId + 0x8);
+  obd.setHeaderFilter(canId + 0x8);  //DID reply CAN-ID är normalt request CAN-ID + 8 (non standard answer can differ)
 
-  char buf[2000] = {0};
-  char payload[512] = {0};
-
+  static char buf[1024];
+  buf[0] = '\0';
+  static char payload[1024];
+  payload[0] = '\0';
+  
   if (!obd.sendCANMessage(msg, msgLen, buf, sizeof(buf))) {
     Serial.println("UDS read failed");
     return false;
