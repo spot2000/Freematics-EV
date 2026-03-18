@@ -800,34 +800,17 @@ void process()
 
       //Plats för att testa UDS-läsning av DIDs från BMS.
       readUDS_DID(0x7E4, 0x220101);
+      //readUDS_DID(0x7E4, 0x220105);
+      //readUDS_DID(0x7E4, 0x220101);
+      //readUDS_DID(0x7E4, 0x220101);
+      //readUDS_DID(0x7E4, 0x220101);
+      //readUDS_DID(0x7E4, 0x220101);
+      //readUDS_DID(0x7E4, 0x220101);
+      //readUDS_DID(0x7E4, 0x220101);
+      //readUDS_DID(0x7E4, 0x220101);
 
-
-
-
-      /*// Read from BMS
-      // Read DID 220101
-      String didAnswer = UDS_read_DID("7E4", "220101");
-      Serial.print("[UDS] DID svar (sträng): ");
-      Serial.println(didAnswer);
-
-      // Read DID 220105
-      didAnswer = UDS_read_DID("7E4", "220105");
-      Serial.print("[UDS] DID svar (sträng): ");
-      Serial.println(didAnswer);
+           
       
-      // Read DID 220106
-      didAnswer = UDS_read_DID("7E4", "220106");
-      Serial.print("[UDS] DID svar (sträng): ");
-      Serial.println(didAnswer);
-      
-      // Read from BMS
-      didAnswer = UDS_read_DID("7E4", "220101");
-      Serial.print("[UDS] DID svar (sträng): ");
-      Serial.println(didAnswer);
-*/
-
-
-
       lastUdsRead = millis();
     } else {
       processOBD(buffer);
