@@ -769,7 +769,6 @@ void process()
       String DID_reply;
 
       // UDS DID read #1: Try to read DID 0x220101 from the BMS and log the response.
-      // Place for testing UDS reads of DIDs from the BMS.
       if (readUDS_DID(0x7E4, 0x220101, DID_reply)) {
         serial_log_print(LOG_INFO, "UDS raw response:");
         serial_log_print(LOG_INFO, DID_reply);
