@@ -569,8 +569,10 @@ bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSi
   return (j > 0);
 }
 
-bool readUDS_DID(uint32_t canId, uint32_t did)
+bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
 {
+  outResponse = "";
+
   uint8_t msg[4];
   size_t msgLen = 0;
 
@@ -598,6 +600,8 @@ bool readUDS_DID(uint32_t canId, uint32_t did)
     Serial.println("UDS read failed");
     return false;
   }
+
+  outResponse = buf;
 
   if (!parseObdBufToPayload(buf, payload, sizeof(payload))) {
     Serial.println("Parse failed");
