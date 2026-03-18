@@ -1,162 +1,162 @@
-# Kodgenomgång av Freematics‑EV
+# Code Review of Freematics-EV
 
-Det här dokumentet beskriver koden i projektet **Freematics‑EV** i detalj, inklusive inbyggda bibliotek. Fokus är på hur telemetridata samlas in, buffras, lagras och skickas samt vilka bygg-/konfigurationsfiler som styr beteendet.
+This document describes the code in the **Freematics-EV** project in detail, including the bundled libraries. The focus is on how telemetry data is collected, buffered, stored, and transmitted, as well as which build/configuration files control the behavior.
 
-## Översikt av projektet
+## Project Overview
 
-Projektet är en firmware‑sketch för Freematics ONE+ (ESP32‑baserad telematics‑enhet). Den loggar och skickar fordonsdata (OBD‑II), GNSS‑position, MEMS‑rörelsedata, signalstyrka och enhetsstatus. Datat kan lagras lokalt (SD/SPIFFS), strömmas till Freematics Hub via UDP/HTTPS och exponeras via en inbyggd HTTP‑server samt en enkel dashboard‑sida.
+The project is a firmware sketch for Freematics ONE+ (an ESP32-based telematics device). It logs and transmits vehicle data (OBD-II), GNSS position, MEMS motion data, signal strength, and device status. The data can be stored locally (SD/SPIFFS), streamed to Freematics Hub via UDP/HTTPS, and exposed through a built-in HTTP server as well as a simple dashboard page.
 
-## Bygg och konfiguration
+## Build and Configuration
 
-- **platformio.ini** beskriver PlatformIO‑miljön (`env:esp32dev`), Arduino‑ramverk, baudrate, flash‑inställningar och extra bibliotekskatalog (`lib_extra_dirs=./libraries`).
-- **config.h** innehåller compile‑time‑konfiguration (t.ex. om OBD, MEMS, GNSS, Wi‑Fi, BLE och HTTPD ska vara aktiva), buffertstorlek, nätverks‑ och lagringsval samt trösklar/tidsintervall för datainsamling och standby.
-- **config.xml** definierar samma inställningar som strukturerade “defines” (t.ex. via ett konfigurationsverktyg), med default‑värden för OBD, GNSS‑läge, lagring, Wi‑Fi och serverprotokoll.
+- **platformio.ini** describes the PlatformIO environment (`env:esp32dev`), Arduino framework, baud rate, flash settings, and extra library directory (`lib_extra_dirs=./libraries`).
+- **config.h** contains compile-time configuration (for example whether OBD, MEMS, GNSS, Wi-Fi, BLE, and HTTPD should be active), buffer size, network and storage choices, as well as thresholds/time intervals for data collection and standby.
+- **config.xml** defines the same settings as structured “defines” (for example through a configuration tool), with default values for OBD, GNSS mode, storage, Wi-Fi, and server protocol.
 
-### Viktiga konfigurationsparametrar (exempel)
+### Important Configuration Parameters (examples)
 
-- **OBD‑ och GNSS‑lägen** styrs av `ENABLE_OBD`, `GNSS`, `ENABLE_MEMS` i `config.h`.
-- **Serverinställningar** (host, port, protokoll) styrs av `SERVER_HOST`, `SERVER_PORT`, `SERVER_PROTOCOL`.
-- **Lagring** styrs av `STORAGE` (SD, SPIFFS eller ingen lagring).
-- **Dataintervall** styrs av `DATA_INTERVAL_TABLE` och `STATIONARY_TIME_TABLE` för att ändra sampling när bilen står still.
+- **OBD and GNSS modes** are controlled by `ENABLE_OBD`, `GNSS`, and `ENABLE_MEMS` in `config.h`.
+- **Server settings** (host, port, protocol) are controlled by `SERVER_HOST`, `SERVER_PORT`, and `SERVER_PROTOCOL`.
+- **Storage** is controlled by `STORAGE` (SD, SPIFFS, or no storage).
+- **Data intervals** are controlled by `DATA_INTERVAL_TABLE` and `STATIONARY_TIME_TABLE` to adjust sampling when the car is stationary.
 
-## Huvudapplikation: telelogger.cpp
+## Main Application: telelogger.cpp
 
-`telelogger.cpp` är den centrala Arduino‑sketchen som koordinerar all insamling, lagring och överföring av data.
+`telelogger.cpp` is the central Arduino sketch that coordinates all data collection, storage, and transmission.
 
-### Struktur och globala tillstånd
+### Structure and Global State
 
-- **Tillståndsflaggor** (STATE_*): håller reda på om OBD, GNSS, MEMS, nätverk och lagring är redo, samt om enheten kör aktivt eller är i standby.
-- **PID‑lista** (`obdData`): definierar vilka OBD‑PID:ar som läses in och på vilken “tier” (prioritet) de pollas.
-- **Bufrar**: `CBufferManager bufman` hanterar en ringbuffert av datapaket (via `CBuffer`).
-- **Nätverksklient**: `TeleClientUDP` eller `TeleClientHTTP` beroende på `SERVER_PROTOCOL`.
-- **Lagring**: `SDLogger` eller `SPIFFSLogger` beroende på `STORAGE`.
+- **State flags** (`STATE_*`): keep track of whether OBD, GNSS, MEMS, network, and storage are ready, and whether the device is running actively or is in standby.
+- **PID list** (`obdData`): defines which OBD PIDs are read and at which “tier” (priority) they are polled.
+- **Buffers**: `CBufferManager bufman` manages a ring buffer of data packets (through `CBuffer`).
+- **Network client**: `TeleClientUDP` or `TeleClientHTTP` depending on `SERVER_PROTOCOL`.
+- **Storage**: `SDLogger` or `SPIFFSLogger` depending on `STORAGE`.
 
-### Initialisering (`setup` / `initialize`)
+### Initialization (`setup` / `initialize`)
 
-1. **NVS och konfigurationsladdning**: NVS används för att läsa sparad konfiguration.
-2. **Seriell loggning**: USB‑serial initieras.
-3. **Enhets‑ID**: genereras för att identifiera enheten i loggar/telemetri.
-4. **MEMS‑initialisering**: testar först `ICM_42627`, sedan `ICM_20948` och kalibrerar accelerometerbias.
-5. **GNSS‑initiering**: startar GNSS, internt eller externt beroende på `GNSS` och hårdvarustöd.
-6. **OBD‑initiering**: etablerar OBD‑anslutning, läser VIN och eventuella DTC:er.
-7. **Lagring**: initierar SD/SPIFFS och öppnar en ny loggfil.
-8. **HTTP‑server**: om aktiverad startas en lokal webserver och IP skrivs ut.
-9. **BLE**: BLE‑SPP‑server initieras om aktiverad.
-10. **Telemetri‑tråd**: en separat task (`telemetry`) startas för nätverkshantering och uppladdning.
+1. **NVS and configuration loading**: NVS is used to read saved configuration.
+2. **Serial logging**: USB serial is initialized.
+3. **Device ID**: generated to identify the device in logs/telemetry.
+4. **MEMS initialization**: first tests `ICM_42627`, then `ICM_20948`, and calibrates accelerometer bias.
+5. **GNSS initialization**: starts GNSS, internal or external depending on `GNSS` and hardware support.
+6. **OBD initialization**: establishes the OBD connection, reads the VIN, and any DTCs.
+7. **Storage**: initializes SD/SPIFFS and opens a new log file.
+8. **HTTP server**: if enabled, a local web server is started and the IP is printed.
+9. **BLE**: BLE-SPP server is initialized if enabled.
+10. **Telemetry thread**: a separate task (`telemetry`) is started for network handling and uploads.
 
-### Datainsamling (`process`)
+### Data Collection (`process`)
 
-Varje cykel i `loop()` anropar `process()` som:
+Each cycle in `loop()` calls `process()`, which:
 
-- **OBD‑pollning**: läser PID:ar (t.ex. hastighet, varvtal, last, temperatur) enligt prioritet, med felhantering och återförsök.
-- **GNSS**: samlar lat/long, hastighet, tid, satellitstatus. Inkluderar reset om GNSS blir “stale”.
-- **MEMS**: läser accelerometer/gyro/magnetometer och beräknar rörelse.
-- **Enhetstemperatur och spänning**: läser batterispänning och chip‑temperatur.
-- **Buffring**: skriver alla värden till `CBuffer` som sedan markeras som fylld.
-- **Adaptiv sampling**: justerar `dataInterval` baserat på rörelse (stationär => glesare sampling).
+- **OBD polling**: reads PIDs (for example speed, RPM, load, temperature) according to priority, with error handling and retries.
+- **GNSS**: collects latitude/longitude, speed, time, and satellite status. Includes reset logic if GNSS becomes “stale.”
+- **MEMS**: reads accelerometer/gyroscope/magnetometer data and calculates motion.
+- **Device temperature and voltage**: reads battery voltage and chip temperature.
+- **Buffering**: writes all values to `CBuffer`, which is then marked as filled.
+- **Adaptive sampling**: adjusts `dataInterval` based on motion (stationary => less frequent sampling).
 
-### Nätverk och telemetri (`telemetry`)
+### Network and Telemetry (`telemetry`)
 
-`telemetry()` kör parallellt och sköter anslutningar och överföring:
+`telemetry()` runs in parallel and manages connections and transmission:
 
-- **Wi‑Fi först**: om SSID är konfigurerat försöker den ansluta via Wi‑Fi och skickar data där.
-- **Cellulär fallback**: om Wi‑Fi inte finns tillgängligt, aktiveras cellulär modul (SIMCOM) för uppkoppling.
-- **Ping/keep‑alive**: periodisk ping under standby, samt övervakning av RSSI.
-- **Sändning**: buffrar serialiseras till `CStorageRAM`, paketeras och skickas till server via UDP/HTTP.
-- **Omkoppling**: när Wi‑Fi blir tillgängligt stängs cellulärmodulen av för att spara ström.
+- **Wi-Fi first**: if an SSID is configured, it first attempts to connect via Wi-Fi and send data there.
+- **Cellular fallback**: if Wi-Fi is not available, the cellular module (SIMCOM) is activated for connectivity.
+- **Ping/keep-alive**: periodic ping during standby, along with RSSI monitoring.
+- **Transmission**: buffers are serialized to `CStorageRAM`, packaged, and sent to the server via UDP/HTTP.
+- **Switching**: when Wi-Fi becomes available, the cellular module is shut down to save power.
 
-### Standby‑logik
+### Standby Logic
 
-- Om rörelse saknas under längre tid går enheten in i **standby**.
-- Standby innebär att nätverksmoduler stängs av och buffrar rensas; enheten “pingar” då och då för att se om den ska vakna.
+- If no motion is detected for an extended period, the device enters **standby**.
+- Standby means the network modules are turned off and buffers are cleared; the device then “pings” from time to time to determine whether it should wake up.
 
-### HTTP‑API och live‑data
+### HTTP API and Live Data
 
-Om `ENABLE_HTTPD` är aktivt exponeras följande (via `dataserver.cpp`):
+If `ENABLE_HTTPD` is active, the following are exposed (via `dataserver.cpp`):
 
-- `/api/info` — CPU‑temp, RTC‑tid, storage‑info.
-- `/api/live` — live OBD/GPS/MEMS‑data i JSON.
-- `/api/log/<id>` — rå CSV‑loggfil.
-- `/api/data/<id>?pid=...` — JSON‑export för en specifik PID.
+- `/api/info` — CPU temperature, RTC time, storage information.
+- `/api/live` — live OBD/GPS/MEMS data in JSON.
+- `/api/log/<id>` — raw CSV log file.
+- `/api/data/<id>?pid=...` — JSON export for a specific PID.
 
-`handlerLiveData()` i `telelogger.cpp` formaterar JSON för realtidsdata.
+`handlerLiveData()` in `telelogger.cpp` formats JSON for real-time data.
 
-## Lagring: telestore.*
+## Storage: telestore.*
 
-`CStorage` och underklasser hanterar serialisering och loggning:
+`CStorage` and its subclasses handle serialization and logging:
 
-- **CStorage**: skriver PID‑par till serial output (standard) eller vidare till cache/logg.
-- **CStorageRAM**: buffrar data i RAM, lägger till checksum‑tail för transmissionspaket.
-- **FileLogger**: gemensam filskrivning för SD/SPIFFS.
-- **SDLogger/SPIFFSLogger**: initierar media, öppnar filer och flushar data.
+- **CStorage**: writes PID pairs to serial output (standard) or forwards them to cache/logging.
+- **CStorageRAM**: buffers data in RAM and appends a checksum tail for transmission packets.
+- **FileLogger**: shared file writing for SD/SPIFFS.
+- **SDLogger/SPIFFSLogger**: initialize the media, open files, and flush data.
 
-## Buffring och telemetri‑paket: teleclient.*
+## Buffering and Telemetry Packets: teleclient.*
 
-- **CBuffer**: lagrar PID‑värden med typ och count i binärt format innan serialisering.
-- **CBufferManager**: pool av `CBuffer`‑slots i RAM/PSRAM med logik för “äldst vinner” när bufferten är full.
-- **TeleClient**: abstrakt klient med räknare för tx/rx.
-- **TeleClientUDP/HTTP**: konkret implementation som skickar datapaket via Wi‑Fi eller cellulär.
+- **CBuffer**: stores PID values with type and count in binary format before serialization.
+- **CBufferManager**: pool of `CBuffer` slots in RAM/PSRAM with “oldest wins” logic when the buffer is full.
+- **TeleClient**: abstract client with tx/rx counters.
+- **TeleClientUDP/HTTP**: concrete implementation that sends data packets over Wi-Fi or cellular.
 
-## HTTP‑serverbibliotek: libraries/httpd
+## HTTP Server Library: libraries/httpd
 
-Det här är en minimal HTTP‑serverimplementation (MiniWeb):
+This is a minimal HTTP server implementation (MiniWeb):
 
-- **httpd.h**: typer, flaggor, request/response‑strukturer och HTTP‑status.
-- **httpd.c/httppil.c/httpjson.c**: implementerar socket‑hantering, request‑parsing och JSON‑helpers.
-- Servern används av `dataserver.cpp` för API:er.
+- **httpd.h**: types, flags, request/response structures, and HTTP status codes.
+- **httpd.c/httppil.c/httpjson.c**: implement socket handling, request parsing, and JSON helpers.
+- The server is used by `dataserver.cpp` for the APIs.
 
-## FreematicsPlus‑biblioteket
+## The FreematicsPlus Library
 
-Det interna biblioteket i `libraries/FreematicsPlus` är kärnan för hårdvarunära funktionalitet.
+The internal library in `libraries/FreematicsPlus` is the core for low-level hardware functionality.
 
 ### FreematicsBase.h
 
-- Definierar **egna PIDs** för GPS, MEMS, spänning, temperatur, etc.
-- Definierar `GPS_DATA`, `ORIENTATION` och abstrakta länkar (`CLink`) och enhetsbas (`CFreematics`).
+- Defines **custom PIDs** for GPS, MEMS, voltage, temperature, etc.
+- Defines `GPS_DATA`, `ORIENTATION`, and abstract links (`CLink`) and device base (`CFreematics`).
 
 ### FreematicsPlus.h / FreematicsPlus.cpp
 
-- Innehåller **hårdvaru‑specifika pin‑mappar** för ESP32 och Freeematics‑enheterna.
-- `FreematicsESP32` implementerar GPS‑, UART‑, buzzer‑, reset‑ och xBee‑kommunikation samt styrning av co‑processor.
+- Contains **hardware-specific pin maps** for ESP32 and the Freematics devices.
+- `FreematicsESP32` implements GPS, UART, buzzer, reset, and xBee communication as well as co-processor control.
 
 ### FreematicsNetwork.h / FreematicsNetwork.cpp
 
-- Implementerar **Wi‑Fi‑** och **cellulära** klienter:
+- Implements **Wi-Fi** and **cellular** clients:
   - `ClientWIFI`, `WifiUDP`, `WifiHTTP`.
-  - `CellSIMCOM`, `CellUDP`, `CellHTTP` för SIM7600/7070/5360.
-- Hanterar APN, signalstyrka, IP‑uppslagning och GNSS‑data via modem.
+  - `CellSIMCOM`, `CellUDP`, `CellHTTP` for SIM7600/7070/5360.
+- Handles APN, signal strength, IP resolution, and GNSS data through the modem.
 
 ### FreematicsOBD.h / FreematicsOBD.cpp
 
-- `COBD` hanterar OBD‑initialisering, PID‑läsning, DTC‑hantering, CAN‑sniffing och VIN‑läsning.
-- Parserar svar från ECU och normaliserar data.
+- `COBD` handles OBD initialization, PID reading, DTC handling, CAN sniffing, and VIN reading.
+- Parses responses from the ECU and normalizes the data.
 
 ### FreematicsMEMS.h / FreematicsMEMS.cpp
 
-- Stöd för MEMS‑sensorer (ICM‑42627, ICM‑20948 m.fl.).
-- Levererar accelerometer/gyro/magnetometer‑data och orientering.
+- Support for MEMS sensors (ICM-42627, ICM-20948, and others).
+- Provides accelerometer/gyroscope/magnetometer data and orientation.
 
 ### FreematicsGPS.h / FreematicsGPS.cpp
 
-- Baserat på TinyGPS: parsar NMEA‑strömmar, beräknar position, hastighet, kurs, satelliter, HDOP, etc.
+- Based on TinyGPS: parses NMEA streams and calculates position, speed, heading, satellites, HDOP, etc.
 
-### Utility‑filer
+### Utility Files
 
-`libraries/FreematicsPlus/utility` innehåller registerdefinitioner och C‑drivrutiner för MEMS‑sensorer samt BLE SPP‑server.
+`libraries/FreematicsPlus/utility` contains register definitions and C drivers for MEMS sensors, as well as a BLE SPP server.
 
-## Dashboard (webb)
+## Dashboard (web)
 
-I mappen `dashboard/` finns en enkel HTML/JS‑dashboard:
+The `dashboard/` folder contains a simple HTML/JS dashboard:
 
-- **index.html**: visar enhets‑ och statusvärden.
-- **dashboard.js**: parsar seriell/kommunikations‑output och uppdaterar UI‑fält i realtid, inklusive ikonstatus för GNSS/OBD/Wi‑Fi.
+- **index.html**: displays device and status values.
+- **dashboard.js**: parses serial/communication output and updates UI fields in real time, including icon status for GNSS/OBD/Wi-Fi.
 
-## Sammanfattning av dataflödet
+## Summary of the Data Flow
 
-1. **Sensorer** (OBD, GNSS, MEMS) läses in.
-2. **Buffring** sker i `CBuffer` via `CBufferManager`.
-3. **Lagring**: datapaket serialiseras till SD/SPIFFS (valfritt).
-4. **Telemetri**: datapaket paketeras i RAM‑buffer, checksum läggs till och skickas via UDP/HTTP.
-5. **API/Dashboard**: HTTP‑server och enkel webbsida ger realtidsstatus.
+1. **Sensors** (OBD, GNSS, MEMS) are read.
+2. **Buffering** occurs in `CBuffer` through `CBufferManager`.
+3. **Storage**: data packets are serialized to SD/SPIFFS (optional).
+4. **Telemetry**: data packets are packaged in a RAM buffer, a checksum is added, and they are sent via UDP/HTTP.
+5. **API/Dashboard**: the HTTP server and simple web page provide real-time status.
 
-Detta ger en komplett telemetri‑pipeline från bilens ECU och sensorer hela vägen till server, lokalt arkiv och realtids‑dashboard.
+This provides a complete telemetry pipeline from the vehicle ECU and sensors all the way to the server, local archive, and real-time dashboard.
