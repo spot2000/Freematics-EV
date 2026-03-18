@@ -568,3 +568,43 @@ bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSi
   outPayload[j] = '\0';
   return (j > 0);
 }
+
+bool readUDS_DID(uint32_t canId, uint32_t did)
+{
+  uint8_t msg[4];
+  size_t msgLen = 0;
+
+  for (int shift = 24; shift >= 0; shift -= 8) {
+    uint8_t b = (uint8_t)((did >> shift) & 0xFF);
+    if (msgLen == 0 && b == 0 && shift > 0) {
+      continue;
+    }
+    msg[msgLen++] = b;
+  }
+
+  if (msgLen == 0) {
+    Serial.println("UDS read failed: empty DID");
+    return false;
+  }
+
+  obd.setCANID((uint16_t)canId);
+  obd.setHeaderMask(0x7FF);
+  obd.setHeaderFilter(canId + 0x8);
+
+  char buf[2000] = {0};
+  char payload[512] = {0};
+
+  if (!obd.sendCANMessage(msg, msgLen, buf, sizeof(buf))) {
+    Serial.println("UDS read failed");
+    return false;
+  }
+
+  if (!parseObdBufToPayload(buf, payload, sizeof(payload))) {
+    Serial.println("Parse failed");
+    return false;
+  }
+
+  Serial.println("Payload only:");
+  Serial.println(payload);
+  return true;
+}

@@ -799,32 +799,7 @@ void process()
     if (runUdsTest) {
 
       //Plats för att testa UDS-läsning av DIDs från BMS.
-      obd.setCANID(0x7E4);
-      obd.setHeaderMask(0x7FF);
-      obd.setHeaderFilter(0x7EC);
-      byte msg[] = {0x22, 0x01, 0x05}; // UDS Read DID 220105 (voltage, current, power)
- 
-
-
-// test of new way to decode MF from CAN interface XXX code to move to separate function XXX
-// should be moved to CAN-uds.cpp and made as a function with the name readUDS_DID(CANID, DID)
-obd.setCANID(0x7E4);
-obd.setHeaderMask(0x7FF);
-obd.setHeaderFilter(0x7EC);
-char buf[2000];
-char payload[512];
-
-if (obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf))) {
-  if (parseObdBufToPayload(buf, payload, sizeof(payload))) {
-    Serial.println("Payload only:");
-    Serial.println(payload);
-  } else {
-    Serial.println("Parse failed");
-  }
-} else {
-  Serial.println("UDS read failed");
-}
-// end of code to be moved to separate function
+      readUDS_DID(0x7E4, 0x220101);
 
 
 
