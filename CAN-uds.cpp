@@ -11,7 +11,7 @@
 // Add your UDS related functions here
 
 
-extern COBD obd;  // eller globalt: COBD obd;
+extern COBD obd;  // or declare COBD obd globally
 
 static bool isExpectedUdsReply(const uint8_t* data, size_t len,
                                const uint8_t* req, size_t reqLen);
@@ -23,8 +23,8 @@ static int hexNibble(char c) {
   return -1;
 }
 
-// "220105" eller "22 01 05" -> bytes[]
-// Returnerar antal bytes, 0 vid fel.
+// "220105" or "22 01 05" -> bytes[]
+// Returns the number of bytes, or 0 on error.
 static size_t hexStringToBytes(const char* s, uint8_t* out, size_t outMax) {
   if (!s || !out || outMax == 0) return 0;
 
@@ -34,34 +34,34 @@ static size_t hexStringToBytes(const char* s, uint8_t* out, size_t outMax) {
   while (*s && n < outMax) {
     char c = *s++;
 
-    // hoppa whitespace och separators
+    // skip whitespace and separators
     if (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == ':' || c == '-') {
       continue;
     }
 
     int v = hexNibble(c);
     if (v < 0) {
-      // ogiltigt tecken
+      // invalid character
       return 0;
     }
 
     if (hi < 0) {
-      hi = v; // första nibble
+      hi = v; // first nibble
     } else {
       out[n++] = (uint8_t)((hi << 4) | v);
       hi = -1;
     }
   }
 
-  // udda antal hex-tecken => fel
+  // odd number of hex characters => error
   if (hi >= 0) return 0;
 
   return n;
 }
 
-// Parsar ASCII-hex i buf (t.ex. "62 01 05 12 34") till bytes
+// Parses ASCII hex in buf (e.g. "62 01 05 12 34") into bytes
 static size_t parseHexBytes(const char* s, uint8_t* out, size_t outMax) {
-  // samma logik duger här också
+  // the same logic works here too
   return hexStringToBytes(s, out, outMax);
 }
 
@@ -74,8 +74,8 @@ static bool isHexToken(const char* token, int len)
   return true;
 }
 
-// Extraherar payload-bytes ur en enskild adapterrad.
-// Stödjer rader som:
+// Extracts payload bytes from a single adapter line.
+// Supports lines such as:
 //  "7EC 10 2E 62 ..."
 //  "0: 10 2E 62 ..."
 //  "10 2E 62 ..."
@@ -86,7 +86,7 @@ static size_t parseAdapterLinePayload(const char* line, uint8_t* out, size_t out
   const char* payload = line;
   while (*payload == ' ' || *payload == '\t') payload++;
 
-  // Hoppa över index-prefix "N:".
+  // Skip the index prefix "N:".
   int idxDigits = 0;
   while (payload[idxDigits] >= '0' && payload[idxDigits] <= '9') idxDigits++;
   if (idxDigits > 0 && payload[idxDigits] == ':') {
@@ -94,8 +94,8 @@ static size_t parseAdapterLinePayload(const char* line, uint8_t* out, size_t out
     while (*payload == ' ') payload++;
   }
 
-  // Hoppa över CAN-ID prefix (3 eller 8 hextecken) men inte första databyten.
-  // Stödjer även varianter som "0x7EC" och/eller ':' separator.
+  // Skip the CAN ID prefix (3 or 8 hex characters), but not the first data byte.
+  // Also supports variants like "0x7EC" and/or ':' as a separator.
   if (payload[0] == '0' && (payload[1] == 'x' || payload[1] == 'X')) {
     payload += 2;
   }
@@ -115,9 +115,9 @@ static size_t parseAdapterLinePayload(const char* line, uint8_t* out, size_t out
   size_t parsed = parseHexBytes(payload, out, outMax);
   if (parsed) return parsed;
 
-  // Fallback: vissa adaptrar/loggformat kan lägga till extra kolumner före payload.
-  // Skanna hela raden efter en möjlig PCI-byte (0x0*,0x1*,0x2*,0x3*) och
-  // försök därefter tolka resten som hex-bytes.
+  // Fallback: some adapters/log formats can add extra columns before the payload.
+  // Scan the whole line for a possible PCI byte (0x0*,0x1*,0x2*,0x3*) and
+  // then try to parse the remainder as hex bytes.
   const char* p = line;
   while (*p) {
     while (*p == ' ' || *p == '\t' || *p == ':' || *p == '|') p++;
@@ -293,7 +293,7 @@ static bool isExpectedUdsReply(const uint8_t* data, size_t len,
 {
   if (!data || !len || !req || !reqLen) return false;
 
-  // Negativt svar för just vår service (7F <SID> <NRC>)
+  // Negative response for this specific service (7F <SID> <NRC>)
   if (len >= 3 && data[0] == 0x7F) {
     return data[1] == req[0];
   }
@@ -301,8 +301,8 @@ static bool isExpectedUdsReply(const uint8_t* data, size_t len,
   const uint8_t positiveSid = (uint8_t)(req[0] + 0x40);
   if (data[0] != positiveSid) return false;
 
-  // För tjänster som brukar echa parametrar (t.ex. 22 DID_H DID_L)
-  // verifierar vi upp till två bytes extra för att filtrera bort skräpramar.
+  // For services that usually echo parameters (e.g. 22 DID_H DID_L),
+  // verify up to two extra bytes to filter out unrelated frames.
   size_t echoBytes = (reqLen > 1) ? reqLen - 1 : 0;
   if (echoBytes > 2) echoBytes = 2;
   if (len < 1 + echoBytes) return false;
@@ -316,13 +316,13 @@ static bool isExpectedUdsReply(const uint8_t* data, size_t len,
 // Will not use this function, but keep for now for reference.
 /**
  * read_UDS
- *  txCanId: t.ex 0x7E4
- *  udsRequestHex: t.ex "220105" eller "22 01 05"
+ *  txCanId: e.g. 0x7E4
+ *  udsRequestHex: e.g. "220105" or "22 01 05"
  *
- *  outRespTxt: råsvaret som ASCII-hex från Freematics
- *  outRespBytes/outRespLen: samma svar som bytes
+ *  outRespTxt: the raw response as ASCII hex from Freematics
+ *  outRespBytes/outRespLen: the same response as bytes
  *
- * Returnerar true vid svar, annars false.
+ * Returns true if a response is received, otherwise false.
  */
 
 /* bool read_UDS(uint32_t txCanId,
@@ -334,8 +334,8 @@ static bool isExpectedUdsReply(const uint8_t* data, size_t len,
     return false;
   }
 
-  // 1) Konvertera request-hex -> request-bytes
-  uint8_t req[32];  // UDS single-frame payload brukar vara kort; öka om du vill
+  // 1) Convert request hex -> request bytes
+  uint8_t req[32];  // UDS single-frame payload is usually short; increase if needed
   size_t reqLen = hexStringToBytes(udsRequestHex, req, sizeof(req));
   if (reqLen == 0) {
     *outRespLen = 0;
@@ -343,11 +343,11 @@ static bool isExpectedUdsReply(const uint8_t* data, size_t len,
     return false;
   }
 
-  // 2) Sätt TX-ID
+  // 2) Set TX ID
   obd.setCANID(txCanId);
 
-  // 3) Skicka request i normal adapter-mode.
-  //    Skicka endast UDS-payload (t.ex. 22 01 05); adaptern hanterar längdfältet.
+  // 3) Send the request in normal adapter mode.
+  //    Send only the UDS payload (e.g. 22 01 05); the adapter handles the length field.
   outRespTxt[0] = '\0';
   *outRespLen = 0;
 
@@ -398,7 +398,7 @@ static bool isExpectedUdsReply(const uint8_t* data, size_t len,
 // function not used any more, will remove later, but keep for now for reference
 /*
 String UDS_read_DID(const char* canIdHex, const char* didHex) {
-  // TX/CAN-ID och DID kan skickas som hexsträngar, t.ex. "7E4" och "220101".
+  // TX/CAN ID and DID can be sent as hex strings, e.g. "7E4" and "220101".
   uint8_t didReq[32];
   size_t didReqLen = hexStringToBytes(didHex, didReq, sizeof(didReq));
   if (!canIdHex || !didReqLen) {
@@ -407,7 +407,7 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
 
   uint32_t txCanId = (uint32_t)strtoul(canIdHex, nullptr, 16);
 
-  // Lyssna på ECU-svar från txCanId + 0x8 (normal 11-bit addressing).
+  // Listen for ECU responses on txCanId + 0x8 (normal 11-bit addressing).
   obd.setCANID(txCanId);
   obd.setHeaderMask(0xFFFFFF);
   obd.setHeaderFilter(txCanId + 0x8);
@@ -432,7 +432,7 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
     memset(buf, 0, sizeof(buf));
     int rxLen = obd.sendCANMessage(msg, didReqLen, buf, sizeof(buf), 900);
 
-    // Visa exakt rå adaptertext utan tolkning/parsning.
+    // Show the exact raw adapter text without interpretation/parsing.
     //printRawAdapterResponse(buf, rxLen);
     //printIndexedAdapterFrames(buf);
 
@@ -467,7 +467,7 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
       }
     }
 
-    //Serial.print("DID svar är: ");
+    //Serial.print("DID response is: ");
     //serial_log_print(LOG_INFO, DIDanswer);
 
     if (rxLen <= 0 && !buf[0]) {
@@ -488,7 +488,7 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
       serial_log_print(LOG_INFO);
     }
 
-    // Markera lyckat om vi fick någon faktisk text tillbaka (inte bara tomrad/OK-echo).
+    // Mark as successful if we got any actual text back (not just an empty line/OK echo).
     const char* p = buf;
     while (*p == ' ' || *p == '\r' || *p == '\n') p++;
     if (*p && strcmp(p, "OK") != 0) {
@@ -508,7 +508,7 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
 
 */
 
-// function to convert CAN answer to stndardised string
+// function to convert CAN answer to a standardized string
 bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSize)
 {
   if (!buf || !outPayload || outPayloadSize == 0) {
@@ -522,7 +522,7 @@ bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSi
   for (size_t i = 0; buf[i] != '\0'; i++) {
     char c = buf[i];
 
-    // Hoppa över inledande längdfält, t.ex. "02E "
+    // Skip the leading length field, e.g. "02E "
     if (!skippedLengthPrefix) {
       if (c == ' ') {
         skippedLengthPrefix = true;
@@ -530,24 +530,24 @@ bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSi
       continue;
     }
 
-    // När vi hittar ":" börjar datadelen på raden efter detta
+    // When we find ":", the data section begins after it
     if (c == ':') {
       afterColon = true;
       continue;
     }
 
-    // Radslut återställer så att nästa radnummer ignoreras tills nästa ':'
+    // A line break resets the state so the next line number is ignored until the next ':'
     if (c == '\r' || c == '\n') {
       afterColon = false;
       continue;
     }
 
-    // Innan ":" ignorerar vi radnummer, t.ex. "0", "1", "2"
+    // Before ":", ignore line numbers such as "0", "1", "2"
     if (!afterColon) {
       continue;
     }
 
-    // Ta bara hextecken ur själva datadelen, hoppa över mellanslag
+    // Keep only hex characters from the data section itself, skipping spaces
     bool isHex =
       (c >= '0' && c <= '9') ||
       (c >= 'A' && c <= 'F') ||
@@ -556,9 +556,9 @@ bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSi
     if (isHex) {
       if (j >= outPayloadSize - 1) {
         outPayload[0] = '\0';
-        return false; // outputbuffer för liten
+        return false; // output buffer too small
       }
-      // Normalisera till versaler
+      // Normalize to uppercase
       if (c >= 'a' && c <= 'f') c = c - 'a' + 'A';
       outPayload[j++] = c;
     }
@@ -572,7 +572,7 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
 {
   outResponse = "";
 
-  uint8_t msg[4]; //the reply from DID call
+  uint8_t msg[4]; // the request payload for the DID call
   size_t msgLen = 0;
 
   for (int shift = 24; shift >= 0; shift -= 8) {
@@ -590,7 +590,7 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
 
   obd.setCANID((uint16_t)canId);
   obd.setHeaderMask(0x7FF);
-  obd.setHeaderFilter(canId + 0x8);  //DID reply CAN-ID är normalt request CAN-ID + 8 (non standard answer can differ)
+  obd.setHeaderFilter(canId + 0x8);  // DID reply CAN ID is normally request CAN ID + 8 (non-standard replies may differ)
 
   static char buf[1024];
   buf[0] = '\0';
