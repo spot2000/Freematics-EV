@@ -180,7 +180,7 @@ State state;
  */
 void printTimeoutStats()
 {
-  serial_log_printf(INFO, "Timeouts: OBD:%lu Network:%lu", (unsigned long)timeoutsOBD, (unsigned long)timeoutsNet);
+  serial_log_printf(LOG_INFO, "Timeouts: OBD:%lu Network:%lu", (unsigned long)timeoutsOBD, (unsigned long)timeoutsNet);
 }
 
 /*
@@ -228,7 +228,7 @@ void processExtInputs(CBuffer* buffer)
   buffer->add(PID_EXT_SENSORS, ELEMENT_UINT8, levels, sizeof(levels), 2);
 #elif LOG_EXT_SENSORS == 2
   uint16_t reading[] = {adc1_get_raw(ADC1_CHANNEL_0), adc1_get_raw(ADC1_CHANNEL_1)};
-  serial_log_printf(INFO, "GPIO0:%.3f GPIO1:%.3f",
+  serial_log_printf(LOG_INFO, "GPIO0:%.3f GPIO1:%.3f",
     (float)reading[0] * 3.15f / 4095 - 0.01f,
     (float)reading[1] * 3.15f / 4095 - 0.01f);
   buffer->add(PID_EXT_SENSORS, ELEMENT_UINT16, reading, sizeof(reading), 2);
@@ -337,11 +337,11 @@ bool initGPS()
 {
   // start GNSS receiver
   if (sys.gpsBeginExt()) {
-    serial_log_print(INFO, "GNSS:OK(E)");
+    serial_log_print(LOG_INFO, "GNSS:OK(E)");
   } else if (sys.gpsBegin()) {
-    serial_log_print(INFO, "GNSS:OK(I)");
+    serial_log_print(LOG_INFO, "GNSS:OK(I)");
   } else {
-    serial_log_print(INFO, "GNSS:NO");
+    serial_log_print(LOG_INFO, "GNSS:NO");
     return false;
   }
   return true;
@@ -391,7 +391,7 @@ bool processGPS(CBuffer* buffer)
   if (gd->lng == 0 && gd->lat == 0) {
     // coordinates not ready
     if (gd->date) {
-      serial_log_printf(INFO, "[GNSS] %s", isoTime);
+      serial_log_printf(LOG_INFO, "[GNSS] %s", isoTime);
     }
     return false;
   }
@@ -418,9 +418,9 @@ bool processGPS(CBuffer* buffer)
     if (gd->hdop) buffer->add(PID_GPS_HDOP, ELEMENT_UINT8, &gd->hdop, sizeof(uint8_t));
   }
   
-  serial_log_printf(INFO, "[GNSS] %.6f %.6f %dkm/h SATS:%u HDOP:%u Course:%u",
+  serial_log_printf(LOG_INFO, "[GNSS] %.6f %.6f %dkm/h SATS:%u HDOP:%u Course:%u",
     gd->lat, gd->lng, (int)kph, gd->sat, gd->hdop, gd->heading);
-  //serial_log_print(INFO, gd->errors);
+  //serial_log_print(LOG_INFO, gd->errors);
   lastGPStime = gd->time;
   return true;
 }
@@ -484,7 +484,7 @@ void processMEMS(CBuffer* buffer)
       Serial.print('/');
       Serial.print(value[1]);
       Serial.print('/');
-      serial_log_print(INFO, value[2]);
+      serial_log_print(LOG_INFO, value[2]);
 */
 #if ENABLE_ORIENTATION
       value[0] = ori.yaw;
@@ -500,7 +500,7 @@ void processMEMS(CBuffer* buffer)
       }
       if (motion >= MOTION_THRESHOLD * MOTION_THRESHOLD) {
         lastMotionTime = millis();
-        serial_log_printf(INFO, "Motion:%f", motion);
+        serial_log_printf(LOG_INFO, "Motion:%f", motion);
       }
 #endif
     }
@@ -537,7 +537,7 @@ void calibrateMEMS()
     accBias[0] /= n;
     accBias[1] /= n;
     accBias[2] /= n;
-    serial_log_printf(INFO, "ACC BIAS:%f/%f/%f", accBias[0], accBias[1], accBias[2]);
+    serial_log_printf(LOG_INFO, "ACC BIAS:%f/%f/%f", accBias[0], accBias[1], accBias[2]);
   }
 }
 #endif
@@ -559,7 +559,7 @@ void printTime()
     char buf[64];
     sprintf(buf, "%04u-%02u-%02u %02u:%02u:%02u",
       1900 + btm->tm_year, btm->tm_mon + 1, btm->tm_mday, btm->tm_hour, btm->tm_min, btm->tm_sec);
-    serial_log_printf(INFO, "UTC:%s", buf);
+    serial_log_printf(LOG_INFO, "UTC:%s", buf);
   }
 }
 
@@ -596,15 +596,15 @@ void initialize()
   // initialize OBD communication
   if (!state.check(STATE_OBD_READY)) {
     timeoutsOBD = 0;
-    serial_log_print(INFO, "[OBD] Init: PROTO_ISO15765_11B_500K");
+    serial_log_print(LOG_INFO, "[OBD] Init: PROTO_ISO15765_11B_500K");
     if (obd.init(PROTO_ISO15765_11B_500K)) {
-      serial_log_print(INFO, "OBD:OK");
+      serial_log_print(LOG_INFO, "OBD:OK");
       state.set(STATE_OBD_READY);
 #if ENABLE_OLED
       oled.println("OBD OK");
 #endif
     } else {
-      serial_log_print(INFO, "OBD:NO");
+      serial_log_print(LOG_INFO, "OBD:NO");
       //state.clear(STATE_WORKING);
       //return;
     }
@@ -629,11 +629,11 @@ void initialize()
     char buf[128];
     if (obd.getVIN(buf, sizeof(buf))) {
       memcpy(vin, buf, sizeof(vin) - 1);
-      serial_log_printf(INFO, "VIN:%s", vin);
+      serial_log_printf(LOG_INFO, "VIN:%s", vin);
     }
     int dtcCount = obd.readDTC(dtc, sizeof(dtc) / sizeof(dtc[0]));
     if (dtcCount > 0) {
-      serial_log_printf(INFO, "DTC:%d", dtcCount);
+      serial_log_printf(LOG_INFO, "DTC:%d", dtcCount);
     }
 #if ENABLE_OLED
     oled.print("VIN:");
@@ -673,7 +673,7 @@ void showStats()
   uint32_t t = millis() - teleClient.startTime;
   char buf[32];
   sprintf(buf, "%02u:%02u.%c ", t / 60000, (t % 60000) / 1000, (t % 1000) / 100 + '0');
-  serial_log_printf(INFO, "[NET] %s| Packet #%lu | Out: %lu KB | In: %lu bytes | %u KB/h",
+  serial_log_printf(LOG_INFO, "[NET] %s| Packet #%lu | Out: %lu KB | In: %lu bytes | %u KB/h",
     buf,
     (unsigned long)teleClient.txCount,
     (unsigned long)(teleClient.txBytes >> 10),
@@ -727,7 +727,7 @@ bool waitMotion(long timeout)
       // check movement
       if (motion >= MOTION_THRESHOLD * MOTION_THRESHOLD) {
         //lastMotionTime = millis();
-        serial_log_print(INFO, motion);
+        serial_log_print(LOG_INFO, motion);
         return true;
       }
     } while (state.check(STATE_STANDBY) && ((long)(millis() - t) < timeout || timeout == -1));
@@ -770,8 +770,8 @@ void process()
 
       //Plats för att testa UDS-läsning av DIDs från BMS.
       if (readUDS_DID(0x7E4, 0x220101, DID_reply)) {
-        serial_log_print(INFO, "UDS raw response:");
-        serial_log_print(INFO, DID_reply);
+        serial_log_print(LOG_INFO, "UDS raw response:");
+        serial_log_print(LOG_INFO, DID_reply);
       }
       //readUDS_DID(0x7E4, 0x220105);
       //readUDS_DID(0x7E4, 0x220101);
@@ -789,18 +789,18 @@ void process()
       processOBD(buffer);
     }
     if (obd.errors >= MAX_OBD_ERRORS) {
-      serial_log_print(INFO, "[OBD] Re-init after errors");
+      serial_log_print(LOG_INFO, "[OBD] Re-init after errors");
       if (!obd.init(PROTO_ISO15765_11B_500K)) {
-        serial_log_print(INFO, "[OBD] ECU OFF");
+        serial_log_print(LOG_INFO, "[OBD] ECU OFF");
         state.clear(STATE_OBD_READY | STATE_WORKING);
         return;
       }
     }
   } else if (obd.init(PROTO_ISO15765_11B_500K, true)) {
     state.set(STATE_OBD_READY);
-    serial_log_print(INFO, "[OBD] ECU ON");
+    serial_log_print(LOG_INFO, "[OBD] ECU ON");
   } else {
-    serial_log_print(INFO, "[OBD] Init (fast) failed");
+    serial_log_print(LOG_INFO, "[OBD] Init (fast) failed");
   }
 #endif
 
@@ -865,7 +865,7 @@ void process()
     if (sizeKB != lastSizeKB) {
       logger.flush();
       lastSizeKB = sizeKB;
-      serial_log_printf(INFO, "[FILE] %uKB", sizeKB);
+      serial_log_printf(LOG_INFO, "[FILE] %uKB", sizeKB);
     }
   }
 #endif
@@ -885,7 +885,7 @@ void process()
   }
   if (stationary) {
     // stationery timeout
-    serial_log_printf(INFO, "Stationary for %lu secs", (unsigned long)motionless);
+    serial_log_printf(LOG_INFO, "Stationary for %lu secs", (unsigned long)motionless);
     // trip ended, go into standby
     state.clear(STATE_WORKING);
     return;
@@ -908,10 +908,10 @@ void process()
  */
 bool initCell(bool quick = false)
 {
-  serial_log_print(INFO, "[CELL] Activating...");
+  serial_log_print(LOG_INFO, "[CELL] Activating...");
   // power on network module
   if (!teleClient.cell.begin(&sys)) {
-    serial_log_print(INFO, "[CELL] No supported module");
+    serial_log_print(LOG_INFO, "[CELL] No supported module");
 #if ENABLE_OLED
     oled.println("No Cell Module");
 #endif
@@ -924,20 +924,20 @@ bool initCell(bool quick = false)
     oled.print("IMEI:");
     oled.println(teleClient.cell.IMEI);
 #endif
-  serial_log_printf(INFO, "CELL:%s", teleClient.cell.deviceName());
+  serial_log_printf(LOG_INFO, "CELL:%s", teleClient.cell.deviceName());
   if (!teleClient.cell.checkSIM(SIM_CARD_PIN)) {
-    serial_log_print(INFO, "NO SIM CARD");
+    serial_log_print(LOG_INFO, "NO SIM CARD");
     //return false;
   }
-  serial_log_printf(INFO, "IMEI:%s", teleClient.cell.IMEI);
-  serial_log_print(INFO, "[CELL] Searching...");
+  serial_log_printf(LOG_INFO, "IMEI:%s", teleClient.cell.IMEI);
+  serial_log_print(LOG_INFO, "[CELL] Searching...");
   if (*apn) {
-    serial_log_printf(INFO, "APN:%s", apn);
+    serial_log_printf(LOG_INFO, "APN:%s", apn);
   }
   if (teleClient.cell.setup(apn, APN_USERNAME, APN_PASSWORD)) {
     netop = teleClient.cell.getOperatorName();
     if (netop.length()) {
-      serial_log_print(INFO, String("Operator:") + netop);
+      serial_log_print(LOG_INFO, String("Operator:") + netop);
 #if ENABLE_OLED
       oled.println(op);
 #endif
@@ -945,13 +945,13 @@ bool initCell(bool quick = false)
 
 #if GNSS == GNSS_CELLULAR
     if (teleClient.cell.setGPS(true)) {
-      serial_log_print(INFO, "CELL GNSS:OK");
+      serial_log_print(LOG_INFO, "CELL GNSS:OK");
     }
 #endif
 
     ip = teleClient.cell.getIP();
     if (ip.length()) {
-      serial_log_print(INFO, String("[CELL] IP:") + ip);
+      serial_log_print(LOG_INFO, String("[CELL] IP:") + ip);
 #if ENABLE_OLED
       oled.print("IP:");
       oled.println(ip);
@@ -963,12 +963,12 @@ bool initCell(bool quick = false)
     if (p) {
       char *q = strchr(p, '\r');
       if (q) *q = 0;
-      serial_log_print(INFO, String("[CELL] ") + (p + 7));
+      serial_log_print(LOG_INFO, String("[CELL] ") + (p + 7));
 #if ENABLE_OLED
       oled.println(p + 7);
 #endif
     } else {
-      serial_log_print(INFO, teleClient.cell.getBuffer());
+      serial_log_print(LOG_INFO, teleClient.cell.getBuffer());
     }
   }
   timeoutsNet = 0;
@@ -1020,18 +1020,18 @@ void telemetry(void* inst)
         // start ping
 #if ENABLE_WIFI
         if (wifiSSID[0]) { 
-          serial_log_printf(INFO, "[WIFI] Joining SSID:%s", wifiSSID);
+          serial_log_printf(LOG_INFO, "[WIFI] Joining SSID:%s", wifiSSID);
           teleClient.wifi.begin(wifiSSID, wifiPassword);
         }
         if (teleClient.wifi.setup()) {
-          serial_log_print(INFO, "[WIFI] Ping...");
+          serial_log_print(LOG_INFO, "[WIFI] Ping...");
           teleClient.ping();
         }
         else
 #endif
         {
           if (initCell()) {
-            serial_log_print(INFO, "[CELL] Ping...");
+            serial_log_print(LOG_INFO, "[CELL] Ping...");
             teleClient.ping();
           }
         }
@@ -1043,7 +1043,7 @@ void telemetry(void* inst)
 
 #if ENABLE_WIFI
     if (wifiSSID[0] && !state.check(STATE_WIFI_CONNECTED)) {
-      serial_log_printf(INFO, "[WIFI] Joining SSID:%s", wifiSSID);
+      serial_log_printf(LOG_INFO, "[WIFI] Joining SSID:%s", wifiSSID);
       teleClient.wifi.begin(wifiSSID, wifiPassword);
       teleClient.wifi.setup();
     }
@@ -1055,7 +1055,7 @@ void telemetry(void* inst)
         if (!state.check(STATE_WIFI_CONNECTED) && teleClient.wifi.connected()) {
           ip = teleClient.wifi.getIP();
           if (ip.length()) {
-            serial_log_print(INFO, String("[WIFI] IP:") + ip);
+            serial_log_print(LOG_INFO, String("[WIFI] IP:") + ip);
           }
           connErrors = 0;
           if (teleClient.connect()) {
@@ -1065,11 +1065,11 @@ void telemetry(void* inst)
             if (state.check(STATE_CELL_CONNECTED)) {
               teleClient.cell.end();
               state.clear(STATE_CELL_CONNECTED);
-              serial_log_print(INFO, "[CELL] Deactivated");
+              serial_log_print(LOG_INFO, "[CELL] Deactivated");
             }
           }
         } else if (state.check(STATE_WIFI_CONNECTED) && !teleClient.wifi.connected()) {
-          serial_log_print(INFO, "[WIFI] Disconnected");
+          serial_log_print(LOG_INFO, "[WIFI] Disconnected");
           state.clear(STATE_WIFI_CONNECTED);
         }
       }
@@ -1079,12 +1079,12 @@ void telemetry(void* inst)
         if (!initCell() || !teleClient.connect()) {
           teleClient.cell.end();
           state.clear(STATE_NET_READY | STATE_CELL_CONNECTED);
-          serial_log_print(INFO, "[CELL] Deactivated");
+          serial_log_print(LOG_INFO, "[CELL] Deactivated");
           // avoid turning on/off cellular module too frequently to avoid operator banning
           delay(60000 * 3);
           break;
         }
-        serial_log_print(INFO, "[CELL] In service");
+        serial_log_print(LOG_INFO, "[CELL] In service");
         state.set(STATE_NET_READY);
         beep(50, 1);
       }
@@ -1101,7 +1101,7 @@ void telemetry(void* inst)
           rssi = teleClient.cell.RSSI();
         }
         if (rssi) {
-          serial_log_printf(INFO, "RSSI:%ddBm", rssi);
+          serial_log_printf(LOG_INFO, "RSSI:%ddBm", rssi);
         }
         lastRssiTime = millis();
 
@@ -1125,7 +1125,7 @@ void telemetry(void* inst)
       buffer->serialize(store);
       bufman.free(buffer);
       store.tailer();
-      serial_log_print(INFO, String("[DAT] ") + store.buffer());
+      serial_log_print(LOG_INFO, String("[DAT] ") + store.buffer());
 
       // start transmission
 #ifdef PIN_LED
@@ -1153,13 +1153,13 @@ void telemetry(void* inst)
       teleClient.inbound();
 
       if (state.check(STATE_CELL_CONNECTED) && !teleClient.cell.check(1000)) {
-        serial_log_print(INFO, "[CELL] Not in service");
+        serial_log_print(LOG_INFO, "[CELL] Not in service");
         state.clear(STATE_NET_READY | STATE_CELL_CONNECTED);
         break;
       }
 
       if (syncInterval > 10000 && millis() - teleClient.lastSyncTime > syncInterval) {
-        serial_log_print(INFO, "[NET] Poor connection");
+        serial_log_print(LOG_INFO, "[NET] Poor connection");
         timeoutsNet++;
         if (!teleClient.connect()) {
           connErrors++;
@@ -1183,7 +1183,7 @@ void telemetry(void* inst)
 
       if (deviceTemp >= COOLING_DOWN_TEMP) {
         // device too hot, cool down by pause transmission
-        serial_log_printf(INFO, "HIGH DEVICE TEMP: %d", deviceTemp);
+        serial_log_printf(LOG_INFO, "HIGH DEVICE TEMP: %d", deviceTemp);
         bufman.purge();
       }
 
@@ -1212,7 +1212,7 @@ void standby()
 
 #if !GNSS_ALWAYS_ON && GNSS == GNSS_STANDALONE
   if (state.check(STATE_GPS_READY)) {
-    serial_log_print(INFO, "[GNSS] OFF");
+    serial_log_print(LOG_INFO, "[GNSS] OFF");
     sys.gpsEnd(true);
     state.clear(STATE_GPS_READY | STATE_GPS_ONLINE);
     gd = 0;
@@ -1226,7 +1226,7 @@ void standby()
   delay(1000);
   oled.clear();
 #endif
-  serial_log_print(INFO, "ENTERING STANDBY MODE - LOW POWER AND WAITING FOR WAKEUP");
+  serial_log_print(LOG_INFO, "ENTERING STANDBY MODE - LOW POWER AND WAITING FOR WAKEUP");
   obd.enterLowPowerMode();
 #if ENABLE_MEMS
   calibrateMEMS();
@@ -1238,7 +1238,7 @@ void standby()
 #else
   delay(5000);
 #endif
-  serial_log_print(INFO, "WAKEUP FROM STANDBY");
+  serial_log_print(LOG_INFO, "WAKEUP FROM STANDBY");
   sys.resetLink();
 #if RESET_AFTER_WAKEUP
 #if ENABLE_MEMS
@@ -1299,11 +1299,11 @@ void showSysInfo()
     sysInfo += "MB";
   }
 #endif
-  serial_log_print(INFO, sysInfo);
+  serial_log_print(LOG_INFO, sysInfo);
 
   int rtc = rtc_clk_slow_freq_get();
   if (rtc) {
-    serial_log_printf(INFO, "RTC:%d", rtc);
+    serial_log_printf(LOG_INFO, "RTC:%d", rtc);
   }
 
 #if ENABLE_OLED
@@ -1315,7 +1315,7 @@ void showSysInfo()
   oled.println("MB Flash");
 #endif
 
-  serial_log_printf(INFO, "DEVICE ID:%s", devid);
+  serial_log_printf(LOG_INFO, "DEVICE ID:%s", devid);
 #if ENABLE_OLED
   oled.print("DEVICE ID:");
   oled.println(devid);
@@ -1389,15 +1389,15 @@ bool loadIniFile(const char* path, IniEntry* entries, size_t entryCount)
 void logIniEntries(const char* path, IniEntry* entries, size_t entryCount, bool loaded)
 {
   if (!loaded) {
-    serial_log_printf(INFO, "[INI] %s load failed", path);
+    serial_log_printf(LOG_INFO, "[INI] %s load failed", path);
     return;
   }
-  serial_log_printf(INFO, "[INI] %s loaded", path);
+  serial_log_printf(LOG_INFO, "[INI] %s loaded", path);
   for (size_t i = 0; i < entryCount; i++) {
     if (entries[i].found) {
-      serial_log_printf(INFO, "[INI] %s saved: %s", entries[i].key, entries[i].value);
+      serial_log_printf(LOG_INFO, "[INI] %s saved: %s", entries[i].key, entries[i].value);
     } else {
-      serial_log_printf(INFO, "[INI] %s not found", entries[i].key);
+      serial_log_printf(LOG_INFO, "[INI] %s not found", entries[i].key);
     }
   }
 }
@@ -1451,7 +1451,7 @@ void processBLE(int timeout)
   int bufsize = sizeof(buf);
   int n = 0;
   if (echo) n += snprintf(buf + n, bufsize - n, "%s\r", cmd);
-  serial_log_printf(INFO, "[BLE] %s", cmd);
+  serial_log_printf(LOG_INFO, "[BLE] %s", cmd);
   if (!strcmp(cmd, "UPTIME") || !strcmp(cmd, "TICK")) {
     n += snprintf(buf + n, bufsize - n, "%lu", millis());
   } else if (!strcmp(cmd, "BATT")) {
@@ -1572,7 +1572,7 @@ void processBLE(int timeout)
   } else {
     n += snprintf(buf + n, bufsize - n, "ERROR");
   }
-  serial_log_print(INFO, String("[BLE] -> ") + ((p = strchr(buf, '\r')) ? p + 1 : buf));
+  serial_log_print(LOG_INFO, String("[BLE] -> ") + ((p = strchr(buf, '\r')) ? p + 1 : buf));
   if (n < bufsize - 1) {
     buf[n++] = '\r';
   } else {
@@ -1649,14 +1649,14 @@ void setup()
   bufman.init();
   
   //Serial.print(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) >> 10);
-  //serial_log_print(INFO, "KB");
+  //serial_log_print(LOG_INFO, "KB");
 
 #if ENABLE_OBD
   if (sys.begin()) {
-    serial_log_printf(INFO, "TYPE:%d", sys.devType);
+    serial_log_printf(LOG_INFO, "TYPE:%d", sys.devType);
     obd.begin(sys.link);
   } else {
-    serial_log_print(INFO, "[OBD] sys.begin() failed; OBD link not initialized");
+    serial_log_print(LOG_INFO, "[OBD] sys.begin() failed; OBD link not initialized");
   }
 #else
   sys.begin(false, true);
@@ -1668,7 +1668,7 @@ if (!state.check(STATE_MEMS_READY)) do {
   byte ret = mems->begin();
   if (ret) {
     state.set(STATE_MEMS_READY);
-    serial_log_print(INFO, "MEMS:ICM-42627");
+    serial_log_print(LOG_INFO, "MEMS:ICM-42627");
     break;
   }
   delete mems;
@@ -1676,7 +1676,7 @@ if (!state.check(STATE_MEMS_READY)) do {
   ret = mems->begin();
   if (ret) {
     state.set(STATE_MEMS_READY);
-    serial_log_print(INFO, "MEMS:ICM-20948");
+    serial_log_print(LOG_INFO, "MEMS:ICM-20948");
     break;
   } 
   delete mems;
@@ -1685,25 +1685,25 @@ if (!state.check(STATE_MEMS_READY)) do {
   ret = mems->begin();
   if (ret) {
     state.set(STATE_MEMS_READY);
-    serial_log_print(INFO, "MEMS:MPU-9250");
+    serial_log_print(LOG_INFO, "MEMS:MPU-9250");
     break;
   }
   */
   mems = 0;
-  serial_log_print(INFO, "MEMS:NO");
+  serial_log_print(LOG_INFO, "MEMS:NO");
 } while (0);
 #endif
 
 #if ENABLE_HTTPD
   IPAddress ip;
   if (serverSetup(ip)) {
-    serial_log_print(INFO, "HTTPD:");
-    serial_log_print(INFO, ip);
+    serial_log_print(LOG_INFO, "HTTPD:");
+    serial_log_print(LOG_INFO, ip);
 #if ENABLE_OLED
     oled.println(ip);
 #endif
   } else {
-    serial_log_print(INFO, "HTTPD:NO");
+    serial_log_print(LOG_INFO, "HTTPD:NO");
   }
 #endif
 

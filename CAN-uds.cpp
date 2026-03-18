@@ -272,20 +272,20 @@ static void printIndexedAdapterFrames(const char* text)
       snprintf(hexByte, sizeof(hexByte), "%02X", frame[i]);
       logLine += hexByte;
     }
-    serial_log_print(INFO, logLine);
+    serial_log_print(LOG_INFO, logLine);
   }
 }
 
 static void printRawAdapterResponse(const char* text, int textLen)
 {
-  serial_log_printf(INFO, "[UDS] RX RAW (len=%d): ", textLen);
+  serial_log_printf(LOG_INFO, "[UDS] RX RAW (len=%d): ", textLen);
 
   if (!text || !*text) {
-    serial_log_print(INFO, "[UDS] RX RAW <empty>");
+    serial_log_print(LOG_INFO, "[UDS] RX RAW <empty>");
     return;
   }
 
-  serial_log_print(INFO, text);
+  serial_log_print(LOG_INFO, text);
 }
 
 static bool isExpectedUdsReply(const uint8_t* data, size_t len,
@@ -423,7 +423,7 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
   Serial.print(didHex);
   Serial.print(" (filter ");
   Serial.print(txCanId + 0x8, HEX);
-  serial_log_print(INFO, ")");
+  serial_log_print(LOG_INFO, ")");
 
   bool gotRaw = false;
   String DIDanswer = "62";
@@ -468,10 +468,10 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
     }
 
     //Serial.print("DID svar är: ");
-    //serial_log_print(INFO, DIDanswer);
+    //serial_log_print(LOG_INFO, DIDanswer);
 
     if (rxLen <= 0 && !buf[0]) {
-      serial_log_print(INFO, "[UDS] RX timeout/no buffered data, retrying...");
+      serial_log_print(LOG_INFO, "[UDS] RX timeout/no buffered data, retrying...");
       delay(30);
       continue;
     }
@@ -485,7 +485,7 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
         if (udsBytes[i] < 16) Serial.print('0');
         Serial.print(udsBytes[i], HEX);
       }
-      serial_log_print(INFO);
+      serial_log_print(LOG_INFO);
     }
 
     // Markera lyckat om vi fick någon faktisk text tillbaka (inte bara tomrad/OK-echo).
@@ -494,13 +494,13 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
     if (*p && strcmp(p, "OK") != 0) {
       gotRaw = true;
     } else {
-      serial_log_print(INFO, "[UDS] RX only adapter echo/empty, retrying...");
+      serial_log_print(LOG_INFO, "[UDS] RX only adapter echo/empty, retrying...");
       delay(30);
     }
   }
 
   if (!gotRaw) {
-    serial_log_print(INFO, "[UDS] No raw UDS response after retries");
+    serial_log_print(LOG_INFO, "[UDS] No raw UDS response after retries");
   }
 
   return DIDanswer;
@@ -584,7 +584,7 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
   }
 
   if (msgLen == 0) {
-    serial_log_print(INFO, "UDS read failed: empty DID");
+    serial_log_print(LOG_INFO, "UDS read failed: empty DID");
     return false;
   }
 
@@ -598,18 +598,18 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
   payload[0] = '\0';
   
   if (!obd.sendCANMessage(msg, msgLen, buf, sizeof(buf))) {
-    serial_log_print(INFO, "UDS read failed");
+    serial_log_print(LOG_INFO, "UDS read failed");
     return false;
   }
 
   outResponse = buf;
 
   if (!parseObdBufToPayload(buf, payload, sizeof(payload))) {
-    serial_log_print(INFO, "Parse failed");
+    serial_log_print(LOG_INFO, "Parse failed");
     return false;
   }
 
-  serial_log_print(INFO, "Payload only:");
-  serial_log_print(INFO, payload);
+  serial_log_print(LOG_INFO, "Payload only:");
+  serial_log_print(LOG_INFO, payload);
   return true;
 }
