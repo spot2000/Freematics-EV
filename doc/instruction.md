@@ -10,7 +10,7 @@ The project is a firmware sketch for Freematics ONE+ (an ESP32-based telematics 
 
 - **platformio.ini** describes the PlatformIO environment (`env:esp32dev`), Arduino framework, baud rate, flash settings, and extra library directory (`lib_extra_dirs=./libraries`).
 - **config.h** contains compile-time configuration (for example whether OBD, MEMS, GNSS, Wi-Fi, BLE, and HTTPD should be active), buffer size, network and storage choices, as well as thresholds/time intervals for data collection and standby.
-- **config.xml** defines the same settings as structured “defines” (for example through a configuration tool), with default values for OBD, GNSS mode, storage, Wi-Fi, and server protocol.
+- **Runtime configuration** is loaded from NVS for persisted APN and Wi-Fi credentials, and from SD card INI files in `/cfg` (`wifi.ini` and `abrp.ini`) when present.
 
 ### Important Configuration Parameters (examples)
 
