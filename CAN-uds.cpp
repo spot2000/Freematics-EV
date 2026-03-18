@@ -313,6 +313,8 @@ static bool isExpectedUdsReply(const uint8_t* data, size_t len,
   return true;
 }
 
+
+// Will not use this function, but keep for now for reference.
 /**
  * read_UDS
  *  txCanId: t.ex 0x7E4
@@ -323,7 +325,8 @@ static bool isExpectedUdsReply(const uint8_t* data, size_t len,
  *
  * Returnerar true vid svar, annars false.
  */
-bool read_UDS(uint32_t txCanId,
+
+/* bool read_UDS(uint32_t txCanId,
               const char* udsRequestHex,
               char* outRespTxt, size_t outRespTxtSize,
               uint8_t* outRespBytes, size_t outRespBytesMax, size_t* outRespLen)
@@ -391,7 +394,10 @@ bool read_UDS(uint32_t txCanId,
   return false;
 }
 
+*/
 
+// function not used any more, will remove later, but keep for now for reference
+/*
 String UDS_read_DID(const char* canIdHex, const char* didHex) {
   // TX/CAN-ID och DID kan skickas som hexsträngar, t.ex. "7E4" och "220101".
   uint8_t didReq[32];
@@ -500,6 +506,8 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
 
   return DIDanswer;
 }
+
+*/
 
 // function to convert CAN answer to stndardised string
 bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSize)

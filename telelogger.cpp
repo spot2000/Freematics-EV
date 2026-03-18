@@ -803,90 +803,14 @@ void process()
       obd.setHeaderMask(0x7FF);
       obd.setHeaderFilter(0x7EC);
       byte msg[] = {0x22, 0x01, 0x05}; // UDS Read DID 220105 (voltage, current, power)
- /*
-      // Test 1 
-      char buf[2000];
-      memset(buf, 0, sizeof(buf));
+ 
 
-      if (obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf))) {
-      Serial.println("UDS answer raw buffer:");
-      for (int i = 0; i < 200; i++) {
-      Serial.print(i);
-      Serial.print(": ");
-      Serial.print((uint8_t)buf[i], HEX);
-      Serial.print(" ");
 
-    if (buf[i] >= 32 && buf[i] <= 126) {
-      Serial.print("'");
-      Serial.print(buf[i]);
-      Serial.print("'");
-    } else {
-      Serial.print(".");
-    }
-    Serial.println();
-  }
-} else {
-  Serial.println("UDS read failed");
-}
-*/
-
-/*
-// test 2
-char buf[2000];
-char pretty[2200];
-
-memset(buf, 0, sizeof(buf));
-memset(pretty, 0, sizeof(pretty));
-
-if (obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf))) {
-  int j = 0;
-
-  for (int i = 0; buf[i] != '\0' && j < (int)sizeof(pretty) - 1; i++) {
-    if (buf[i] == '\r') {
-      pretty[j++] = '\n';
-    } else {
-      pretty[j++] = buf[i];
-    }
-  }
-  pretty[j] = '\0';
-
-  Serial.println("=== RAW BUF FIRST 80 ===");
-  for (int i = 0; i < 80; i++) {
-    Serial.print(i);
-    Serial.print(": ");
-    Serial.print((uint8_t)buf[i], HEX);
-    Serial.print(" '");
-    if (buf[i] >= 32 && buf[i] <= 126) Serial.print(buf[i]);
-    else Serial.print(".");
-    Serial.println("'");
-  }
-
-  Serial.println("=== PRETTY FIRST 80 ===");
-  for (int i = 0; i < 80; i++) {
-    Serial.print(i);
-    Serial.print(": ");
-    Serial.print((uint8_t)pretty[i], HEX);
-    Serial.print(" '");
-    if (pretty[i] >= 32 && pretty[i] <= 126) Serial.print(pretty[i]);
-    else if (pretty[i] == '\n') Serial.print("\\n");
-    else if (pretty[i] == '\0') Serial.print("\\0");
-    else Serial.print(".");
-    Serial.println("'");
-  }
-
-  Serial.println("=== PRETTY TEXT ===");
-  Serial.print(pretty);
-  Serial.println();
-} else {
-  Serial.println("UDS read failed");
-}
-*/
-
-// test 3
+// test of new way to decode MF from CAN interface XXX code to move to separate function XXX
+// should be moved to CAN-uds.cpp and made as a function with the name readUDS_DID(CANID, DID)
 obd.setCANID(0x7E4);
 obd.setHeaderMask(0x7FF);
 obd.setHeaderFilter(0x7EC);
-
 char buf[2000];
 char payload[512];
 
@@ -900,6 +824,10 @@ if (obd.sendCANMessage(msg, sizeof(msg), buf, sizeof(buf))) {
 } else {
   Serial.println("UDS read failed");
 }
+// end of code to be moved to separate function
+
+
+
 
       /*// Read from BMS
       // Read DID 220101
