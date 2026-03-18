@@ -1,3 +1,4 @@
+#include "serial_logging.h"
 #include <FreematicsPlus.h>
 #include "telestore.h"
 
@@ -126,7 +127,7 @@ void FileLogger::dispatch(const char* buf, byte len)
     if (m_file.write((uint8_t*)buf, len) != len) {
         // try again
         if (m_file.write((uint8_t*)buf, len) != len) {
-            Serial.println("Error writing. End file logging.");
+            serial_log_print(INFO, "Error writing. End file logging.");
             end();
             return;
         }
@@ -157,14 +158,10 @@ bool SDLogger::init()
     if (SD.begin(PIN_SD_CS, SPI, SPI_FREQ)) {
         unsigned int total = SD.totalBytes() >> 20;
         unsigned int used = SD.usedBytes() >> 20;
-        Serial.print("SD:");
-        Serial.print(total);
-        Serial.print(" MB total, ");
-        Serial.print(used);
-        Serial.println(" MB used");
+        serial_log_printf(INFO, "SD:%u MB total, %u MB used", total, used);
         return true;
     } else {
-        Serial.println("NO SD CARD");
+        serial_log_print(INFO, "NO SD CARD");
         return false;
     }
 }
@@ -179,11 +176,10 @@ uint32_t SDLogger::begin()
     }
     char path[24];
     sprintf(path, "/DATA/%u.CSV", m_id);
-    Serial.print("File: ");
-    Serial.println(path);
+    serial_log_printf(INFO, "File: %s", path);
     m_file = SD.open(path, FILE_WRITE);
     if (!m_file) {
-        Serial.println("File error");
+        serial_log_print(INFO, "File error");
         m_id = 0;
     }
     m_dataCount = 0;
@@ -197,7 +193,7 @@ void SDLogger::flush()
     m_file.close();
     m_file = SD.open(path, FILE_APPEND);
     if (!m_file) {
-        Serial.println("File error");
+        serial_log_print(INFO, "File error");
     }
 }
 
@@ -205,17 +201,13 @@ bool SPIFFSLogger::init()
 {
     bool mounted = SPIFFS.begin();
     if (!mounted) {
-        Serial.println("Formatting SPIFFS...");
+        serial_log_print(INFO, "Formatting SPIFFS...");
         mounted = SPIFFS.begin(true);
     }
     if (mounted) {
-        Serial.print("SPIFFS:");
-        Serial.print(SPIFFS.totalBytes());
-        Serial.print(" bytes total, ");
-        Serial.print(SPIFFS.usedBytes());
-        Serial.println(" bytes used");
+        serial_log_printf(INFO, "SPIFFS:%u bytes total, %u bytes used", SPIFFS.totalBytes(), SPIFFS.usedBytes());
     } else {
-        Serial.println("No SPIFFS");
+        serial_log_print(INFO, "No SPIFFS");
     }
     return mounted;
 }
@@ -226,11 +218,10 @@ uint32_t SPIFFSLogger::begin()
     m_id = getFileID(root);
     char path[24];
     sprintf(path, "/DATA/%u.CSV", m_id);
-    Serial.print("File: ");
-    Serial.println(path);
+    serial_log_printf(INFO, "File: %s", path);
     m_file = SPIFFS.open(path, FILE_WRITE);
     if (!m_file) {
-        Serial.println("File error");
+        serial_log_print(INFO, "File error");
         m_id = 0;
     }
     m_dataCount = 0;
@@ -254,8 +245,7 @@ void SPIFFSLogger::purge()
         char path[32];
         sprintf(path, "/DATA/%u.CSV", idx);
         SPIFFS.remove(path);
-        Serial.print(path);
-        Serial.println(" removed");
+        serial_log_printf(INFO, "%s removed", path);
         sprintf(path, "/DATA/%u.CSV", m_id);
         m_file = SPIFFS.open(path, FILE_APPEND);
         if (!m_file) m_id = 0;

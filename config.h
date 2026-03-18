@@ -181,6 +181,12 @@
 
 #define COOLING_DOWN_TEMP 75 /* celsius degrees */
 
+/**************************************
+* Logging
+**************************************/
+#define ACTIVE_LOGS 1 /* 1 = show logs, 0 = disable serial_log_print output */
+#define LOG_LEVEL INFO
+
 // enable(1)/disable(0) http server
 #ifndef ENABLE_HTTPD
 #define ENABLE_HTTPD 0

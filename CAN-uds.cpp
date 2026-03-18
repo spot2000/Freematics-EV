@@ -3,6 +3,7 @@
 /* it uses functions from FreematicsOBD.cpp */
 /* Functions to add: read UDS messages, interpret UDS responses */
 
+#include "serial_logging.h"
 #include <FreematicsPlus.h>
 #include "CAN-uds.h"
 
@@ -263,30 +264,28 @@ static void printIndexedAdapterFrames(const char* text)
     size_t frameLen = parseAdapterLinePayload(line, frame, sizeof(frame));
     if (!frameLen) continue;
 
-    Serial.print("[UDS] RX IDX ");
-    Serial.print(frameIdx++);
-    Serial.print(": ");
+    String logLine = String("[UDS] RX IDX ") + frameIdx++ + ": ";
     for (size_t i = 0; i < frameLen; i++) {
-      if (i) Serial.print(' ');
-      if (frame[i] < 16) Serial.print('0');
-      Serial.print(frame[i], HEX);
+      if (i) logLine += ' ';
+      if (frame[i] < 16) logLine += '0';
+      char hexByte[3];
+      snprintf(hexByte, sizeof(hexByte), "%02X", frame[i]);
+      logLine += hexByte;
     }
-    Serial.println();
+    serial_log_print(INFO, logLine);
   }
 }
 
 static void printRawAdapterResponse(const char* text, int textLen)
 {
-  Serial.print("[UDS] RX RAW (len=");
-  Serial.print(textLen);
-  Serial.println("): ");
+  serial_log_printf(INFO, "[UDS] RX RAW (len=%d): ", textLen);
 
   if (!text || !*text) {
-    Serial.println("[UDS] RX RAW <empty>");
+    serial_log_print(INFO, "[UDS] RX RAW <empty>");
     return;
   }
 
-  Serial.println(text);
+  serial_log_print(INFO, text);
 }
 
 static bool isExpectedUdsReply(const uint8_t* data, size_t len,
@@ -424,7 +423,7 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
   Serial.print(didHex);
   Serial.print(" (filter ");
   Serial.print(txCanId + 0x8, HEX);
-  Serial.println(")");
+  serial_log_print(INFO, ")");
 
   bool gotRaw = false;
   String DIDanswer = "62";
@@ -469,10 +468,10 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
     }
 
     //Serial.print("DID svar är: ");
-    //Serial.println(DIDanswer);
+    //serial_log_print(INFO, DIDanswer);
 
     if (rxLen <= 0 && !buf[0]) {
-      Serial.println("[UDS] RX timeout/no buffered data, retrying...");
+      serial_log_print(INFO, "[UDS] RX timeout/no buffered data, retrying...");
       delay(30);
       continue;
     }
@@ -486,7 +485,7 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
         if (udsBytes[i] < 16) Serial.print('0');
         Serial.print(udsBytes[i], HEX);
       }
-      Serial.println();
+      serial_log_print(INFO);
     }
 
     // Markera lyckat om vi fick någon faktisk text tillbaka (inte bara tomrad/OK-echo).
@@ -495,13 +494,13 @@ String UDS_read_DID(const char* canIdHex, const char* didHex) {
     if (*p && strcmp(p, "OK") != 0) {
       gotRaw = true;
     } else {
-      Serial.println("[UDS] RX only adapter echo/empty, retrying...");
+      serial_log_print(INFO, "[UDS] RX only adapter echo/empty, retrying...");
       delay(30);
     }
   }
 
   if (!gotRaw) {
-    Serial.println("[UDS] No raw UDS response after retries");
+    serial_log_print(INFO, "[UDS] No raw UDS response after retries");
   }
 
   return DIDanswer;
@@ -585,7 +584,7 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
   }
 
   if (msgLen == 0) {
-    Serial.println("UDS read failed: empty DID");
+    serial_log_print(INFO, "UDS read failed: empty DID");
     return false;
   }
 
@@ -599,18 +598,18 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
   payload[0] = '\0';
   
   if (!obd.sendCANMessage(msg, msgLen, buf, sizeof(buf))) {
-    Serial.println("UDS read failed");
+    serial_log_print(INFO, "UDS read failed");
     return false;
   }
 
   outResponse = buf;
 
   if (!parseObdBufToPayload(buf, payload, sizeof(payload))) {
-    Serial.println("Parse failed");
+    serial_log_print(INFO, "Parse failed");
     return false;
   }
 
-  Serial.println("Payload only:");
-  Serial.println(payload);
+  serial_log_print(INFO, "Payload only:");
+  serial_log_print(INFO, payload);
   return true;
 }
