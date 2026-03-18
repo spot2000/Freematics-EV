@@ -43,7 +43,7 @@ void CBuffer::add(uint16_t pid, uint8_t type, void* values, int bytes, uint8_t c
     offset += bytes;
     total++;
   } else {
-    serial_log_print(INFO, "FULL");
+    serial_log_print(LOG_INFO, "FULL");
   }
 }
 
@@ -112,7 +112,7 @@ void CBufferManager::init()
     mem = malloc(BUFFER_LENGTH);
 #endif
     if (!mem) {
-      serial_log_print(INFO, "OUT OF RAM");
+      serial_log_print(LOG_INFO, "OUT OF RAM");
       total = n;
       break;
     }
@@ -202,7 +202,7 @@ void CBufferManager::printStats()
     count++;
   }
   if (slots) {
-    serial_log_printf(INFO, "[BUF] %d samples | %d bytes | %d/%lu", samples, bytes, count, (unsigned long)total);
+    serial_log_printf(LOG_INFO, "[BUF] %d samples | %d bytes | %d/%lu", samples, bytes, count, (unsigned long)total);
   }
 }
 
@@ -239,7 +239,7 @@ bool TeleClientUDP::notify(byte event, const char* payload)
     netbuf.dispatch(payload, strlen(payload));
   }
   netbuf.tailer();
-  //serial_log_print(INFO, netbuf.buffer());
+  //serial_log_print(LOG_INFO, netbuf.buffer());
   for (byte attempts = 0; attempts < 3; attempts++) {
     // send notification datagram
 #if ENABLE_WIFI
@@ -271,19 +271,19 @@ bool TeleClientUDP::notify(byte event, const char* payload)
       data = cell.receive(&bytesRecv); 
     }
     if (!data || bytesRecv == 0) {
-      serial_log_print(INFO, "[UDP] Timeout");
+      serial_log_print(LOG_INFO, "[UDP] Timeout");
       continue;
     }
     rxBytes += bytesRecv;
     // verify checksum
     if (!verifyChecksum(data)) {
-      serial_log_printf(INFO, "[UDP] Checksum mismatch:%s", data);
+      serial_log_printf(LOG_INFO, "[UDP] Checksum mismatch:%s", data);
       continue;
     }
     char pattern[16];
     sprintf(pattern, "EV=%u", event);
     if (!strstr(data, pattern)) {
-      serial_log_printf(INFO, "[UDP] Invalid reply: %s", data);
+      serial_log_printf(LOG_INFO, "[UDP] Invalid reply: %s", data);
       continue;
     }
     if (event == EVENT_LOGIN) {
@@ -333,12 +333,12 @@ bool TeleClientUDP::connect(bool quick)
 
   // connect to telematics server
   for (byte attempts = 0; attempts < 3; attempts++) {
-    serial_log_printf(INFO, "%s%s:%d)...", event == EVENT_LOGIN ? "LOGIN(" : "RECONNECT(", SERVER_HOST, SERVER_PORT);
+    serial_log_printf(LOG_INFO, "%s%s:%d)...", event == EVENT_LOGIN ? "LOGIN(" : "RECONNECT(", SERVER_HOST, SERVER_PORT);
 #if ENABLE_WIFI
     if (wifi.connected())
     {
       if (!wifi.open(SERVER_HOST, SERVER_PORT)) {
-        serial_log_print(INFO, "[WIFI] Unable to connect");
+        serial_log_print(LOG_INFO, "[WIFI] Unable to connect");
         delay(1000);
         continue;
       }
@@ -348,7 +348,7 @@ bool TeleClientUDP::connect(bool quick)
     {
       if (!cell.open(SERVER_HOST, SERVER_PORT)) {
         if (!cell.check()) break;
-        serial_log_print(INFO, "[NET] Unable to connect");
+        serial_log_print(LOG_INFO, "[NET] Unable to connect");
         delay(3000);
         continue;
       }
@@ -366,7 +366,7 @@ bool TeleClientUDP::connect(bool quick)
         if (!cell.check()) break;
         cell.close();
       }
-      serial_log_print(INFO, "[NET] Server timeout");
+      serial_log_print(LOG_INFO, "[NET] Server timeout");
       continue;
     }
     success = true;
@@ -420,7 +420,7 @@ bool TeleClientUDP::transmit(const char* packetBuffer, unsigned int packetSize)
     if (wifi.send(packetBuffer, packetSize)) {
       txBytes += packetSize;
       txCount++;
-      serial_log_printf(INFO, "[WIFI] %u bytes sent", packetSize);
+      serial_log_printf(LOG_INFO, "[WIFI] %u bytes sent", packetSize);
       return true;  
     }
     return false;
@@ -433,7 +433,7 @@ bool TeleClientUDP::transmit(const char* packetBuffer, unsigned int packetSize)
     cell.open(0, 0);
     packets = 0;
   }
-  serial_log_printf(INFO, "[CELL] %u bytes being sent", packetSize);
+  serial_log_printf(LOG_INFO, "[CELL] %u bytes being sent", packetSize);
   if (cell.send(packetBuffer, packetSize)) {
     txBytes += packetSize;
     txCount++;
@@ -461,10 +461,10 @@ void TeleClientUDP::inbound()
     }
     if (!data || len == 0) break;
     data[len] = 0;
-    serial_log_printf(INFO, "[UDP] %s", data);
+    serial_log_printf(LOG_INFO, "[UDP] %s", data);
     rxBytes += len;
     if (!verifyChecksum(data)) {
-      serial_log_printf(INFO, "[UDP] Checksum mismatch:%s", data);
+      serial_log_printf(LOG_INFO, "[UDP] Checksum mismatch:%s", data);
       break;
     }
     char *p = strstr(data, "EV=");
@@ -473,7 +473,7 @@ void TeleClientUDP::inbound()
     switch (eventID) {
     case EVENT_SYNC:
         feedid = hex2uint16(data);
-        serial_log_printf(INFO, "[UDP] FEED ID:%u", feedid);
+        serial_log_printf(LOG_INFO, "[UDP] FEED ID:%u", feedid);
         break;
     }
     lastSyncTime = millis();
@@ -485,17 +485,17 @@ void TeleClientUDP::shutdown()
   if (login) {
     notify(EVENT_LOGOUT);
     login = false;
-    serial_log_print(INFO, "[NET] Logout");
+    serial_log_print(LOG_INFO, "[NET] Logout");
   }
 #if ENABLE_WIFI
   if (wifi.connected()) {
     wifi.end();
-    serial_log_print(INFO, "[WIFI] Deactivated");
+    serial_log_print(LOG_INFO, "[WIFI] Deactivated");
     return;
   }
 #endif
   cell.end();
-  serial_log_print(INFO, "[CELL] Deactivated");
+  serial_log_print(LOG_INFO, "[CELL] Deactivated");
 }
 
 bool TeleClientHTTP::notify(byte event, const char* payload)
@@ -545,19 +545,19 @@ bool TeleClientHTTP::transmit(const char* packetBuffer, unsigned int packetSize)
   len = snprintf(path, sizeof(path), "%s/post/%s", SERVER_PATH, devid);
 #if ENABLE_WIFI
   if (wifi.connected()) {
-    serial_log_printf(INFO, "[WIFI] %s", path);
+    serial_log_printf(LOG_INFO, "[WIFI] %s", path);
     success = wifi.send(METHOD_POST, path, packetBuffer, packetSize);
   }
   else
 #endif
   {
-    serial_log_printf(INFO, "[CELL] %s", path);
+    serial_log_printf(LOG_INFO, "[CELL] %s", path);
     success = cell.send(METHOD_POST, SERVER_HOST, SERVER_PORT, path, packetBuffer, packetSize);
   }
   len += packetSize;
 #endif
   if (!success) {
-    serial_log_print(INFO, "[HTTP] Connection closed");
+    serial_log_print(LOG_INFO, "[HTTP] Connection closed");
     return false;
   } else {
     txBytes += len;
@@ -579,10 +579,10 @@ bool TeleClientHTTP::transmit(const char* packetBuffer, unsigned int packetSize)
   }
   if (!content) {
     // close connection on receiving timeout
-    serial_log_print(INFO, "[HTTP] No response");
+    serial_log_print(LOG_INFO, "[HTTP] No response");
     return false;
   }
-  serial_log_printf(INFO, "[HTTP] %s", content);
+  serial_log_printf(LOG_INFO, "[HTTP] %s", content);
 #if ENABLE_WIFI
   if ((wifi.connected() && wifi.code() == 200) || cell.code() == 200) {
 #else
@@ -628,12 +628,12 @@ bool TeleClientHTTP::connect(bool quick)
     }
   }
   if (!success) {
-    serial_log_print(INFO, "[CELL] Unable to connect");
+    serial_log_print(LOG_INFO, "[CELL] Unable to connect");
     return false;
   }
   if (quick) return true;
   if (!login) {
-    serial_log_printf(INFO, "LOGIN(%s:%d)...", SERVER_HOST, SERVER_PORT);
+    serial_log_printf(LOG_INFO, "LOGIN(%s:%d)...", SERVER_HOST, SERVER_PORT);
     // log in or reconnect to Freematics Hub
     if (notify(EVENT_LOGIN)) {
       lastSyncTime = millis();
@@ -653,16 +653,16 @@ void TeleClientHTTP::shutdown()
   if (login) {
     notify(EVENT_LOGOUT);
     login = false;
-    serial_log_print(INFO, "[NET] Logout");
+    serial_log_print(LOG_INFO, "[NET] Logout");
   }
 #if ENABLE_WIFI
   if (wifi.connected()) {
     wifi.end();
-    serial_log_print(INFO, "[WIFI] Deactivated");
+    serial_log_print(LOG_INFO, "[WIFI] Deactivated");
     return;
   }
 #endif
   cell.close();
   cell.end();
-  serial_log_print(INFO, "[CELL] Deactivated");
+  serial_log_print(LOG_INFO, "[CELL] Deactivated");
 }

@@ -6,10 +6,10 @@
 #include <stdarg.h>
 
 enum SerialLogLevel : uint8_t {
-  ERROR = 0,
-  WARN = 1,
-  INFO = 2,
-  DEBUG = 3
+  LOG_ERROR = 0,
+  LOG_WARN = 1,
+  LOG_INFO = 2,
+  LOG_DEBUG = 3
 };
 
 inline bool serial_log_is_enabled(SerialLogLevel level)
@@ -20,13 +20,13 @@ inline bool serial_log_is_enabled(SerialLogLevel level)
 inline const char* serial_log_level_name(SerialLogLevel level)
 {
   switch (level) {
-    case ERROR:
+    case LOG_ERROR:
       return "ERROR";
-    case WARN:
+    case LOG_WARN:
       return "WARN";
-    case INFO:
+    case LOG_INFO:
       return "INFO";
-    case DEBUG:
+    case LOG_DEBUG:
       return "DEBUG";
     default:
       return "LOG";

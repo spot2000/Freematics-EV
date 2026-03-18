@@ -246,7 +246,7 @@ int handlerLogList(UrlHandlerParam* param)
             if (!strncmp(fn, "/DATA/", 6)) {
                 fn += 6;
                 unsigned int size = file.size();
-                serial_log_printf(INFO, "%s %u bytes", fn, size);
+                serial_log_printf(LOG_INFO, "%s %u bytes", fn, size);
                 unsigned int id = atoi(fn);
                 if (id) {
                     n += snprintf(buf + n, bufsize - n, "{\"id\":%u,\"size\":%u",
