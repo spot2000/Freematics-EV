@@ -5,12 +5,6 @@
 #include <stdint.h>
 #include <WString.h>
 
-bool read_UDS(uint32_t txCanId,
-              const char* udsRequestHex,
-              char* outRespTxt, size_t outRespTxtSize,
-              uint8_t* outRespBytes, size_t outRespBytesMax, size_t* outRespLen);
-
-String UDS_read_DID(const char* canIdHex, const char* didHex);
 bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse);
 bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSize);
 
