@@ -763,43 +763,43 @@ void process()
   if (state.check(STATE_OBD_READY)) {
     bool runUdsTest = (millis() - lastUdsRead >= udsIntervalMs);
 
-    // Undvik att blanda periodisk OBD-pollning (7DF/5xx) med UDS-test i samma loopvarv.
-    // Det gör sniff-spåret renare och minskar risken att gamla svar ligger kvar i adapterns RX-buffer.
+    // Avoid mixing periodic OBD polling (7DF/5xx) with UDS tests in the same loop iteration.
+    // This keeps the sniff trace cleaner and reduces the risk of stale responses remaining in the adapter RX buffer.
     if (runUdsTest) {
       String DID_reply;
 
-      // UDS DID read #1: Försök läsa DID 0x220101 från BMS och logga svaret.
-      //Plats för att testa UDS-läsning av DIDs från BMS.
+      // UDS DID read #1: Try to read DID 0x220101 from the BMS and log the response.
+      // Place for testing UDS reads of DIDs from the BMS.
       if (readUDS_DID(0x7E4, 0x220101, DID_reply)) {
         serial_log_print(LOG_INFO, "UDS raw response:");
         serial_log_print(LOG_INFO, DID_reply);
       }
-      // UDS DID read #2: Försök läsa DID 0x220105 från BMS och logga svaret.
+      // UDS DID read #2: Try to read DID 0x220105 from the BMS and log the response.
       if (readUDS_DID(0x7E4, 0x220105, DID_reply)) {
         serial_log_print(LOG_INFO, "UDS raw response:");
         serial_log_print(LOG_INFO, DID_reply);
       }
-      // UDS DID read #3: Försök läsa DID 0x22E001 från VCMS och logga svaret.
+      // UDS DID read #3: Try to read DID 0x22E001 from the VCMS and log the response.
       if (readUDS_DID(0x744, 0x22E001, DID_reply)) {
         serial_log_print(LOG_INFO, "UDS raw response:");
         serial_log_print(LOG_INFO, DID_reply);
       }
-      // UDS DID read #4: Försök läsa DID 0x22C000 från BDC-TPMS och logga svaret.
+      // UDS DID read #4: Try to read DID 0x22C000 from the BDC-TPMS and log the response.
       if (readUDS_DID(0x7A0, 0x22C000, DID_reply)) {
         serial_log_print(LOG_INFO, "UDS raw response:");
         serial_log_print(LOG_INFO, DID_reply);
       }
-      // UDS DID read #5: Försök läsa DID 0x220100 från AIRCON och logga svaret.
+      // UDS DID read #5: Try to read DID 0x220100 from the AIRCON and log the response.
       if (readUDS_DID(0x7B3, 0x220100, DID_reply)) {
         serial_log_print(LOG_INFO, "UDS raw response:");
         serial_log_print(LOG_INFO, DID_reply);
       }
-      // UDS DID read #6: Försök läsa DID 0x22B002 från CLUSTER och logga svaret.
+      // UDS DID read #6: Try to read DID 0x22B002 from the CLUSTER and log the response.
       if (readUDS_DID(0x7C6, 0x22B002, DID_reply)) {
         serial_log_print(LOG_INFO, "UDS raw response:");
         serial_log_print(LOG_INFO, DID_reply);
       }
-      // UDS DID read #7: Försök läsa DID 0x22E004 från VCU och logga svaret.
+      // UDS DID read #7: Try to read DID 0x22E004 from the VCU and log the response.
       if (readUDS_DID(0x7E2, 0x22E004, DID_reply)) {
         serial_log_print(LOG_INFO, "UDS raw response:");
         serial_log_print(LOG_INFO, DID_reply);
