@@ -75,6 +75,8 @@ bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSi
   return (j > 0);
 }
 
+
+// Code to take a UDS DID call and send it to CAN with help of SendCANMessage
 bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
 {
   outResponse = "";
@@ -104,7 +106,7 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
   static char payload[1024];
   payload[0] = '\0';
   
-  if (!obd.sendCANMessage(msg, msgLen, buf, sizeof(buf))) {
+  if (!obd.sendCANMessage(msg, msgLen, buf, sizeof(buf), 5000)) {
     serial_log_print(LOG_INFO, "UDS read failed");
     return false;
   }
