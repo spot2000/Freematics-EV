@@ -13,6 +13,35 @@
 
 extern COBD obd;  // or declare COBD obd globally
 
+static bool hasAdapterErrorToken(const char* buf)
+{
+  if (!buf) return true;
+  const char* tokens[] = {"NO DATA", "STOPPED", "ERROR", "UNABLE", "BUFFER FULL", "?"};
+  for (size_t i = 0; i < sizeof(tokens) / sizeof(tokens[0]); i++) {
+    if (strstr(buf, tokens[i])) return true;
+  }
+  return false;
+}
+
+static bool ensureAutoFlowControlEnabled()
+{
+  static uint32_t lastCheck = 0;
+  uint32_t now = millis();
+  if (now - lastCheck < 10000) {
+    return true;
+  }
+  lastCheck = now;
+  if (!obd.link) return false;
+  char atbuf[64] = {0};
+  int n = obd.link->sendCommand("ATCFC1\r", atbuf, sizeof(atbuf), 1000);
+  if (!n || !strstr(atbuf, "OK")) {
+    serial_log_print(LOG_INFO, "[UDS] ATCFC1 verify failed");
+    serial_log_print(LOG_INFO, atbuf);
+    return false;
+  }
+  return true;
+}
+
 
 
 // function to convert CAN answer to a standardized string
@@ -80,6 +109,10 @@ bool parseObdBufToPayload(const char* buf, char* outPayload, size_t outPayloadSi
 bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
 {
   outResponse = "";
+  if (!ensureAutoFlowControlEnabled()) {
+    serial_log_print(LOG_INFO, "UDS read failed: auto flow control unavailable");
+    return false;
+  }
 
   uint8_t msg[4]; // the request payload for the DID call
   size_t msgLen = 0;
@@ -107,13 +140,24 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
   buf[0] = '\0';
   static char payload[1024];
   payload[0] = '\0';
+
+  // Give adapter/ECU a short idle gap between consecutive UDS reads.
+  delay(75);
   
-  if (!obd.sendCANMessage(msg, msgLen, buf, sizeof(buf), 5000)) {
+  int n = obd.sendCANMessage(msg, msgLen, buf, sizeof(buf), 5000);
+  if (!n) {
     serial_log_print(LOG_INFO, "UDS read failed");
     return false;
   }
 
+  serial_log_print(LOG_INFO, "UDS raw adapter:");
+  serial_log_print(LOG_INFO, buf);
   outResponse = buf;
+
+  if (hasAdapterErrorToken(buf)) {
+    serial_log_print(LOG_INFO, "UDS read failed: adapter signaled error");
+    return false;
+  }
 
   if (!parseObdBufToPayload(buf, payload, sizeof(payload))) {
     serial_log_print(LOG_INFO, "Parse failed");

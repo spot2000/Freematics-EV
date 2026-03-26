@@ -264,7 +264,7 @@ void CLink_UART::end()
 
 int CLink_UART::receive(char* buffer, int bufsize, unsigned int timeout)
 {
-	unsigned char n = 0;
+	int n = 0;
 	unsigned long startTime = millis();
 	unsigned long elapsed;
 	for (;;) {
