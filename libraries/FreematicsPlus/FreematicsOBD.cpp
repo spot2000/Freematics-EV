@@ -335,6 +335,7 @@ bool COBD::getVIN(char* buffer, byte bufsize)
 			if (p) {
 				char *q = buffer;
 				p += 11; // skip the header
+				// Each frame carries ASCII VIN bytes encoded as hexadecimal pairs.
 				do {
 					while (*(++p) == ' ');
 					for (;;) {
@@ -584,17 +585,20 @@ int COBD::receiveData(byte* buf, int len)
 	int bytes = 0;
 	len = n;
 	if (buf[0] == '$') {
+		// Native monitor format: "$<meta>,AA,BB,CC,..."
 		for (n = 1; n < len && buf[n] != ','; n++);
 		for (; n < len && buf[n] == ','; bytes++) {
 			byte d = hex2uint8((const char*)buf + n + 1);
 			n += 3;
 			if (buf[n] != ',' && buf[n] != '\r') {
+				// Some adapters duplicate nibble text without comma; validate and continue.
 				if (d != hex2uint8((const char*)buf + n)) break;
 				n += 2;
 			}
 			buf[bytes] = d;
 		}
 	} else {
+		// ELM-style format: optional CAN ID token, followed by hex byte pairs separated by spaces.
 		int start = 0;
 		int tokenEnd = 0;
 		for (; tokenEnd < len && buf[tokenEnd] != ' ' && buf[tokenEnd] != '\r'; tokenEnd++) {}
