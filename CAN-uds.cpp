@@ -98,8 +98,10 @@ bool readUDS_DID(uint32_t canId, uint32_t did, String& outResponse)
   }
 
   obd.setCANID((uint16_t)canId);
-  obd.setHeaderMask(0xFFFFFF);
+  obd.setHeaderMask(0x7FF);
   obd.setHeaderFilter(canId + 0x8);  // DID reply CAN ID is normally request CAN ID + 8 (non-standard replies may differ)
+  //obd.sniff();
+
 
   static char buf[1024];
   buf[0] = '\0';
