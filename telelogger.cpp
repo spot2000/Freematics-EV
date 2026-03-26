@@ -752,6 +752,7 @@ void process()
 {
   static uint32_t lastUdsRead = 0;
   const uint32_t udsIntervalMs = 1000; // interval for UDS read test 1000 ms = 1 sec
+  static uint8_t udsIndex = 0;
   static uint32_t lastGPStick = 0;
   uint32_t startTime = millis();
 
@@ -767,46 +768,26 @@ void process()
     // This keeps the sniff trace cleaner and reduces the risk of stale responses remaining in the adapter RX buffer.
     if (runUdsTest) {
       String DID_reply;
+      struct UdsRequest {
+        uint16_t canId;
+        uint32_t did;
+      };
+      static const UdsRequest udsRequests[] = {
+        {0x7E4, 0x220101}, // BMS
+        {0x7E4, 0x220105}, // BMS
+        {0x744, 0x22E001}, // VCMS
+        {0x7A0, 0x22C000}, // BDC-TPMS
+        {0x7B3, 0x220100}, // AIRCON
+        {0x7C6, 0x22B002}, // CLUSTER
+        {0x7E2, 0x22E004}, // VCU
+      };
 
-      // UDS DID read #1: Try to read DID 0x220101 from the BMS and log the response.
-      if (readUDS_DID(0x7E4, 0x220101, DID_reply)) {
-        serial_log_print(LOG_INFO, "UDS raw response:");
-        serial_log_print(LOG_INFO, DID_reply);
-      } 
-      // UDS DID read #2: Try to read DID 0x220105 from the BMS and log the response.
-      if (readUDS_DID(0x7E4, 0x220105, DID_reply)) {
+      const UdsRequest& req = udsRequests[udsIndex];
+      if (readUDS_DID(req.canId, req.did, DID_reply)) {
         serial_log_print(LOG_INFO, "UDS raw response:");
         serial_log_print(LOG_INFO, DID_reply);
       }
-      // UDS DID read #3: Try to read DID 0x22E001 from the VCMS and log the response.
-      if (readUDS_DID(0x744, 0x22E001, DID_reply)) {
-        serial_log_print(LOG_INFO, "UDS raw response:");
-        serial_log_print(LOG_INFO, DID_reply);
-      }
-      // UDS DID read #4: Try to read DID 0x22C000 from the BDC-TPMS and log the response.
-      if (readUDS_DID(0x7A0, 0x22C000, DID_reply)) {
-        serial_log_print(LOG_INFO, "UDS raw response:");
-        serial_log_print(LOG_INFO, DID_reply);
-      }
-      // UDS DID read #5: Try to read DID 0x220100 from the AIRCON and log the response.
-      if (readUDS_DID(0x7B3, 0x220100, DID_reply)) {
-        serial_log_print(LOG_INFO, "UDS raw response:");
-        serial_log_print(LOG_INFO, DID_reply);
-      }
-      // UDS DID read #6: Try to read DID 0x22B002 from the CLUSTER and log the response.
-      if (readUDS_DID(0x7C6, 0x22B002, DID_reply)) {
-        serial_log_print(LOG_INFO, "UDS raw response:");
-        serial_log_print(LOG_INFO, DID_reply);
-      }
-      // UDS DID read #7: Try to read DID 0x22E004 from the VCU and log the response.
-      if (readUDS_DID(0x7E2, 0x22E004, DID_reply)) {
-        serial_log_print(LOG_INFO, "UDS raw response:");
-        serial_log_print(LOG_INFO, DID_reply);
-      }
-      
-
-
-           
+      udsIndex = (udsIndex + 1) % (sizeof(udsRequests) / sizeof(udsRequests[0]));
       
       lastUdsRead = millis();
     } else {
